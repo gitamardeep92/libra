@@ -28,7 +28,8 @@ export const api = {
     register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
     login:    (body) => request('/api/auth/login',    { method: 'POST', body: JSON.stringify(body) }),
     me:       ()     => request('/api/auth/me'),
-    updateSeats: (totalSeats) => request('/api/auth/seats', { method: 'PATCH', body: JSON.stringify({ totalSeats }) }),
+    updateSeats:   (totalSeats)          => request('/api/auth/seats',    { method: 'PATCH', body: JSON.stringify({ totalSeats }) }),
+    updateOpHours: (openTime, closeTime) => request('/api/auth/ophours', { method: 'PATCH', body: JSON.stringify({ openTime, closeTime }) }),
   },
 
   // ─── Shifts ──────────────────────────────────────────────────────────────

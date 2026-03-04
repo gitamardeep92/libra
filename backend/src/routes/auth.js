@@ -24,7 +24,7 @@ router.post('/register', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO libraries (owner_name, email, password, library_name, city)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, owner_name, email, library_name, city, total_seats, created_at`,
+       RETURNING id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at`,
       [ownerName, email.toLowerCase(), hash, libraryName, city || null]
     );
     const lib = result.rows[0];
@@ -46,7 +46,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
     const result = await pool.query(
-      `SELECT id, owner_name, email, password, library_name, city, total_seats, created_at
+      `SELECT id, owner_name, email, password, library_name, city, total_seats, open_time, close_time, created_at
        FROM libraries WHERE email = $1`,
       [email.toLowerCase()]
     );
@@ -72,7 +72,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, owner_name, email, library_name, city, total_seats, created_at FROM libraries WHERE id = $1`,
+      `SELECT id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at FROM libraries WHERE id = $1`,
       [req.libraryId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Library not found' });
@@ -89,6 +89,21 @@ router.patch('/seats', auth, async (req, res) => {
   try {
     await pool.query('UPDATE libraries SET total_seats=$1, updated_at=NOW() WHERE id=$2', [totalSeats, req.libraryId]);
     res.json({ totalSeats });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PATCH /api/auth/ophours ──────────────────────────────────────────────────
+router.patch('/ophours', auth, async (req, res) => {
+  const { openTime, closeTime } = req.body;
+  if (!openTime || !closeTime) return res.status(400).json({ error: 'openTime and closeTime required' });
+  try {
+    await pool.query(
+      'UPDATE libraries SET open_time=$1, close_time=$2, updated_at=NOW() WHERE id=$3',
+      [openTime, closeTime, req.libraryId]
+    );
+    res.json({ openTime, closeTime });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

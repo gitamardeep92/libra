@@ -102,6 +102,16 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Add operation hours columns if not already present
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='open_time') THEN
+    ALTER TABLE libraries ADD COLUMN open_time TIME DEFAULT '08:00';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='close_time') THEN
+    ALTER TABLE libraries ADD COLUMN close_time TIME DEFAULT '21:00';
+  END IF;
+END $$;
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_students_library    ON students(library_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_lib   ON subscriptions(library_id);

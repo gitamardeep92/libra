@@ -249,21 +249,74 @@ function useLibraryData(isLoggedIn) {
 }
 
 // ─── SEAT HELPERS (same logic as before, now uses data arrays not lib object) ─
-function getSeatStatus(seatNum, subscriptions, shifts) {
-  const active = (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0);
+// ─── SEAT STATUS (operation-hours aware) ─────────────────────────────────────
+const toMins = (t) => { const [h,m] = (t||"00:00").split(":").map(Number); return h*60+(m||0); };
+
+// Returns how many minutes of the operation window a shift covers
+function shiftCoverage(shift, opStart, opEnd) {
+  if (!shift) return 0;
+  const s = Math.max(toMins(shift.start_time), opStart);
+  const e = Math.min(toMins(shift.end_time),   opEnd);
+  return Math.max(0, e - s);
+}
+
+// Get operation window from library settings (fallback: earliest shift → latest shift)
+function getOperationWindow(library, shifts) {
+  const opOpen  = library?.open_time  || null;
+  const opClose = library?.close_time || null;
+  if (opOpen && opClose) return { opStart: toMins(opOpen), opEnd: toMins(opClose) };
+  if (!shifts || shifts.length === 0) return { opStart: 8*60, opEnd: 21*60 };
+  return {
+    opStart: Math.min(...shifts.map(s => toMins(s.start_time))),
+    opEnd:   Math.max(...shifts.map(s => toMins(s.end_time))),
+  };
+}
+
+// Build a set of covered minutes for a seat from its active subscriptions
+function getCoveredMins(seatNum, subscriptions, shifts) {
+  const active = (subscriptions||[]).filter(s => s.status==="active" && Number(s.seat_number)===seatNum && daysDiff(s.end_date)>=0);
+  const mins = new Set();
+  active.forEach(sub => {
+    const sh = (shifts||[]).find(s => s.id===sub.shift_id);
+    if (sh) for (let m = toMins(sh.start_time); m < toMins(sh.end_time); m++) mins.add(m);
+  });
+  return mins;
+}
+
+function getSeatStatus(seatNum, subscriptions, shifts, library) {
+  const active = (subscriptions||[]).filter(s => s.status==="active" && Number(s.seat_number)===seatNum && daysDiff(s.end_date)>=0);
   if (active.length === 0) return "available";
-  const totalShifts = (shifts || []).length;
-  if (totalShifts <= 1) return "occupied";
-  return active.length < totalShifts ? "half" : "occupied";
+  const { opStart, opEnd } = getOperationWindow(library, shifts);
+  const totalMins = opEnd - opStart;
+  if (totalMins <= 0) return active.length > 0 ? "occupied" : "available";
+  // Count how many operation minutes are covered by active subscriptions
+  const covered = getCoveredMins(seatNum, subscriptions, shifts);
+  const coveredInOp = [...covered].filter(m => m >= opStart && m < opEnd).length;
+  if (coveredInOp >= totalMins * 0.97) return "occupied";
+  if (coveredInOp > 0) return "half";
+  return "available";
 }
 
 function getSeatOccupants(seatNum, subscriptions) {
-  return (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0);
+  return (subscriptions||[]).filter(s => s.status==="active" && Number(s.seat_number)===seatNum && daysDiff(s.end_date)>=0);
 }
 
-function getAvailableShiftsForSeat(seatNum, subscriptions, shifts) {
-  const occupied = (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0).map(s => s.shift_id);
-  return (shifts || []).filter(sh => !occupied.includes(sh.id));
+function getAvailableShiftsForSeat(seatNum, subscriptions, shifts, library) {
+  const { opStart, opEnd } = getOperationWindow(library, shifts);
+  const covered = getCoveredMins(seatNum, subscriptions, shifts);
+  const occupiedShiftIds = (subscriptions||[])
+    .filter(s => s.status==="active" && Number(s.seat_number)===seatNum && daysDiff(s.end_date)>=0)
+    .map(s => s.shift_id);
+  return (shifts||[]).filter(sh => {
+    if (occupiedShiftIds.includes(sh.id)) return false;
+    // Check if shift has any uncovered minutes within operation window
+    const shStart = Math.max(toMins(sh.start_time), opStart);
+    const shEnd   = Math.min(toMins(sh.end_time),   opEnd);
+    for (let m = shStart; m < shEnd; m++) {
+      if (!covered.has(m)) return true;
+    }
+    return false;
+  });
 }
 
 // ─── SEAT PANEL ───────────────────────────────────────────────────────────────
@@ -281,12 +334,21 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
     } finally { setSaving(false); }
   };
 
-  const status  = (n) => getSeatStatus(n, data.subscriptions, data.shifts);
+  const updateOpHours = async (openTime, closeTime) => {
+    setSaving(true);
+    try {
+      await api.auth.updateOpHours(openTime, closeTime);
+      onUpdate({ open_time: openTime, close_time: closeTime });
+    } finally { setSaving(false); }
+  };
+
+  const status  = (n) => getSeatStatus(n, data.subscriptions, data.shifts, library);
   const occs    = (n) => getSeatOccupants(n, data.subscriptions);
-  const freeShifts = (n) => getAvailableShiftsForSeat(n, data.subscriptions, data.shifts);
+  const freeShifts = (n) => getAvailableShiftsForSeat(n, data.subscriptions, data.shifts, library);
 
   const handleClick = (n) => {
     const s = status(n);
+    // Fully occupied seats open tooltip (info only, no subscribe button)
     if (s === "available" && onCreateSubscription) { onCreateSubscription({ seatNumber: n, shiftId: "" }); return; }
     setTooltip(tooltip === n ? null : n);
   };
@@ -294,10 +356,20 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
   return (
     <>
       {showControls && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <span className="text-sm text-muted">Total seats:</span>
-          <input className="input" type="number" min="1" style={{ width: 78 }} defaultValue={totalSeats}
-            onBlur={e => { const n = Number(e.target.value); if (n !== totalSeats && n >= 1) updateTotal(n); }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="text-sm text-muted">Total seats:</span>
+            <input className="input" type="number" min="1" style={{ width: 78 }} defaultValue={totalSeats}
+              onBlur={e => { const n = Number(e.target.value); if (n !== totalSeats && n >= 1) updateTotal(n); }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="text-sm text-muted">Operation hours:</span>
+            <input className="input" type="time" style={{ width: 110 }} defaultValue={library?.open_time || "08:00"}
+              onBlur={e => { if(e.target.value) updateOpHours(e.target.value, library?.close_time || "21:00"); }} />
+            <span className="text-sm text-muted">to</span>
+            <input className="input" type="time" style={{ width: 110 }} defaultValue={library?.close_time || "21:00"}
+              onBlur={e => { if(e.target.value) updateOpHours(library?.open_time || "08:00", e.target.value); }} />
+          </div>
           {saving && <Spinner size={16} />}
         </div>
       )}
@@ -463,8 +535,9 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
   }, [data]);   // re-fetch when data changes
 
   const totalSeats = library?.total_seats || 30;
-  const freeCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts)==="available").length;
-  const halfCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts)==="half").length;
+  const { opStart, opEnd } = library ? getOperationWindow(library, data.shifts||[]) : { opStart: 8*60, opEnd: 21*60 };
+  const freeCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts,library)==="available").length;
+  const halfCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts,library)==="half").length;
 
   if (loadingSum) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:60}}><Spinner size={32}/></div>;
 
@@ -625,7 +698,19 @@ function Subscriptions({ data, reload, prefill, onClearPrefill }) {
   const renew=(sub)=>{setForm({studentId:sub.student_id,planId:sub.plan_id||"",startDate:today(),seatNumber:String(sub.seat_number||""),shiftId:sub.shift_id||"",paymentMode:"cash",discount:0,notes:"Renewal"});setShowModal(true);};
 
   const occupiedSeatShifts=(data.subscriptions||[]).filter(s=>s.status==="active"&&s.seat_number&&daysDiff(s.end_date)>=0);
-  const isTaken=(seatNum,shiftId)=>occupiedSeatShifts.some(s=>Number(s.seat_number)===Number(seatNum)&&s.shift_id===shiftId);
+  const isTaken=(seatNum,shiftId)=>{
+    if(!seatNum) return false;
+    const seatStatus = getSeatStatus(Number(seatNum), data.subscriptions, data.shifts, null);
+    if(seatStatus==="occupied") return true;
+    // Also block if the specific shift's time is already covered
+    const covered = getCoveredMins(Number(seatNum), data.subscriptions, data.shifts);
+    const sh = (data.shifts||[]).find(s=>s.id===shiftId);
+    if(!sh) return false;
+    const shStart = toMins(sh.start_time), shEnd = toMins(sh.end_time);
+    let uncovered = false;
+    for(let m=shStart; m<shEnd; m++) { if(!covered.has(m)) { uncovered=true; break; } }
+    return !uncovered;
+  };
 
   const subs=(data.subscriptions||[]).filter(s=>{const q=search.toLowerCase();const match=s.student_name?.toLowerCase().includes(q)||s.plan_name?.toLowerCase().includes(q);const f=filter==="all"||(filter==="active"&&s.status==="active"&&daysDiff(s.end_date)>=0)||(filter==="expiring"&&s.status==="active"&&daysDiff(s.end_date)>=0&&daysDiff(s.end_date)<=7)||(filter==="expired"&&(s.status!=="active"||daysDiff(s.end_date)<0));return match&&f;}).sort((a,b)=>b.created_at>a.created_at?1:-1);
 
@@ -790,7 +875,14 @@ export default function App() {
 
   const handleAuth    = (lib) => { setLibrary(lib); };
   const handleLogout  = ()    => { clearToken(); setLibrary(null); setData({ shifts:[], plans:[], students:[], subscriptions:[], reminders:[], expenses:[], totalSeats:30 }); };
-  const handleUpdate  = (upd) => { if (upd.totalSeats) setLibrary(prev => ({ ...prev, total_seats: upd.totalSeats })); };
+  const handleUpdate  = (upd) => {
+    setLibrary(prev => ({
+      ...prev,
+      ...(upd.totalSeats ? { total_seats: upd.totalSeats } : {}),
+      ...(upd.open_time  ? { open_time:   upd.open_time  } : {}),
+      ...(upd.close_time ? { close_time:  upd.close_time } : {}),
+    }));
+  };
   const handleCreateSub = (pf) => { setSubPrefill(pf); setPage("subscriptions"); };
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
