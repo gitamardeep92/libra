@@ -1,0 +1,843 @@
+// frontend/src/App.jsx
+// Identical UI/UX to the previous version — only data layer changed.
+// localStorage is gone. All state comes from API calls via src/api.js
+import { useState, useEffect, useCallback } from "react";
+import { api, setToken, getToken, clearToken } from "./api";
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const today      = () => new Date().toISOString().slice(0, 10);
+const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+const addDays    = (date, days) => { const d = new Date(date); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
+const daysDiff   = (d1, d2 = today()) => Math.ceil((new Date(d1) - new Date(d2)) / 86400000);
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const Icon = ({ name, size = 20, color = "currentColor" }) => {
+  const icons = {
+    book:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+    users:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    dollar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+    bell:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+    chart:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+    plus:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    edit:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    trash:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+    logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+    home:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+    eye:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+    eyeoff: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+    check:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+    x:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    tag:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+    warn:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    seat2:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H6v-2a2 2 0 0 0-4 0z"/></svg>,
+    search: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    id:     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+    clock:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    menu:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+    spin:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
+    calendar:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+const styles = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px);}to{opacity:1;transform:none;}}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0a0c10;--surface:#11141a;--surface2:#181c25;--surface3:#1e2330;
+    --border:#252b3a;--border2:#2e3648;
+    --accent:#e8a838;--accent2:#f0c060;--accent-dim:rgba(232,168,56,0.12);--accent-glow:rgba(232,168,56,0.25);
+    --text:#eef0f5;--text2:#8892a4;--text3:#5a6478;
+    --green:#3dd68c;--green-dim:rgba(61,214,140,0.12);
+    --red:#f06060;--red-dim:rgba(240,96,96,0.12);
+    --yellow:#f5c542;--yellow-dim:rgba(245,197,66,0.14);
+    --blue:#5b9cf6;--blue-dim:rgba(91,156,246,0.12);
+    --purple:#a78bfa;--purple-dim:rgba(167,139,250,0.12);
+    --radius:14px;--radius-sm:8px;--shadow:0 4px 24px rgba(0,0,0,0.45);--transition:0.18s ease;
+  }
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+  ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:var(--surface);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:252px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform var(--transition);}
+  .sidebar-logo{padding:24px 22px 16px;border-bottom:1px solid var(--border);}
+  .logo-text{font-family:'Playfair Display',serif;font-size:21px;color:var(--accent);}
+  .logo-sub{font-size:10px;color:var(--text3);letter-spacing:2.5px;text-transform:uppercase;margin-top:2px;}
+  .sidebar-nav{flex:1;padding:14px 10px;overflow-y:auto;}
+  .nav-section{margin-bottom:22px;}
+  .nav-section-title{font-size:10px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;padding:0 12px;margin-bottom:6px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-size:14px;font-weight:500;transition:all var(--transition);margin-bottom:2px;border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif;}
+  .nav-item:hover{background:var(--surface2);color:var(--text);}
+  .nav-item.active{background:var(--accent-dim);color:var(--accent);}
+  .nav-item .nbadge{margin-left:auto;background:var(--red);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;}
+  .sidebar-footer{padding:14px 10px;border-top:1px solid var(--border);}
+  .lib-info{display:flex;align-items:center;gap:10px;padding:8px 12px;}
+  .lib-avatar{width:34px;height:34px;border-radius:10px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700;font-size:14px;flex-shrink:0;}
+  .main{margin-left:252px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+  .content{padding:28px;flex:1;}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--radius-sm);font-size:13.5px;font-weight:600;cursor:pointer;transition:all var(--transition);border:none;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .btn-primary{background:var(--accent);color:#0a0c10;}
+  .btn-primary:not(:disabled):hover{background:var(--accent2);transform:translateY(-1px);box-shadow:0 4px 14px var(--accent-glow);}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2);}
+  .btn-secondary:hover{background:var(--surface3);}
+  .btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(240,96,96,0.25);}
+  .btn-danger:hover{background:var(--red);color:white;}
+  .btn-ghost{background:transparent;color:var(--text2);padding:7px;border-radius:var(--radius-sm);}
+  .btn-ghost:hover{background:var(--surface2);color:var(--text);}
+  .btn-sm{padding:5px 12px;font-size:12.5px;}
+  .btn-icon{width:34px;height:34px;padding:0;justify-content:center;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;}
+  .card-sm{padding:14px;}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:14px;margin-bottom:28px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:0;right:0;width:70px;height:70px;border-radius:50%;opacity:0.07;transform:translate(18px,-18px);}
+  .stat-card.gold::before{background:var(--accent);}.stat-card.green::before{background:var(--green);}.stat-card.red::before{background:var(--red);}.stat-card.blue::before{background:var(--blue);}.stat-card.purple::before{background:var(--purple);}
+  .stat-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .stat-value{font-family:'Playfair Display',serif;font-size:26px;font-weight:600;}
+  .stat-card.gold .stat-value{color:var(--accent);}.stat-card.green .stat-value{color:var(--green);}.stat-card.red .stat-value{color:var(--red);}.stat-card.blue .stat-value{color:var(--blue);}.stat-card.purple .stat-value{color:var(--purple);}
+  .stat-icon{position:absolute;top:18px;right:18px;opacity:0.45;}
+  .stat-change{font-size:11.5px;margin-top:5px;color:var(--text3);}
+  .table-container{overflow-x:auto;}
+  .table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  .table th{text-align:left;padding:11px 15px;font-size:10.5px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);}
+  .table td{padding:13px 15px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .table tr:last-child td{border-bottom:none;}
+  .table tbody tr:hover td{background:var(--surface2);}
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;}
+  .badge-green{background:var(--green-dim);color:var(--green);}.badge-red{background:var(--red-dim);color:var(--red);}.badge-gold{background:var(--accent-dim);color:var(--accent);}.badge-blue{background:var(--blue-dim);color:var(--blue);}.badge-purple{background:var(--purple-dim);color:var(--purple);}.badge-gray{background:var(--surface3);color:var(--text2);}.badge-yellow{background:var(--yellow-dim);color:var(--yellow);}
+  .form-group{margin-bottom:16px;}
+  .label{display:block;font-size:11.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;}
+  .input{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-size:13.5px;font-family:'DM Sans',sans-serif;transition:border-color var(--transition);outline:none;}
+  .input:focus{border-color:var(--accent);}
+  .input::placeholder{color:var(--text3);}
+  .select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  .textarea{resize:vertical;min-height:76px;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);backdrop-filter:blur(5px);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow);animation:modalIn 0.18s ease;}
+  .modal-lg{max-width:700px;}
+  .modal-header{padding:22px 22px 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  .modal-title{font-family:'Playfair Display',serif;font-size:19px;}
+  .modal-body{padding:0 22px;}
+  .modal-footer{padding:20px 22px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);margin-top:20px;}
+  .auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);position:relative;overflow:hidden;}
+  .auth-bg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% -10%,rgba(232,168,56,0.07) 0%,transparent 70%);pointer-events:none;}
+  .auth-card{width:100%;max-width:430px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:38px;box-shadow:0 20px 60px rgba(0,0,0,0.5);position:relative;z-index:1;}
+  .auth-logo{text-align:center;margin-bottom:28px;}
+  .auth-logo-icon{width:52px;height:52px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;}
+  .auth-title{font-family:'Playfair Display',serif;font-size:26px;color:var(--text);margin-bottom:3px;}
+  .auth-sub{font-size:13px;color:var(--text3);}
+  .auth-toggle{text-align:center;margin-top:22px;font-size:13.5px;color:var(--text3);}
+  .auth-toggle a{color:var(--accent);cursor:pointer;font-weight:600;}
+  .search-bar{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 14px;flex:1;max-width:310px;}
+  .search-bar input{background:none;border:none;color:var(--text);font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none;flex:1;}
+  .search-bar input::placeholder{color:var(--text3);}
+  .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px;}
+  .page-header-left h1{font-family:'Playfair Display',serif;font-size:24px;margin-bottom:3px;}
+  .page-header-left p{font-size:13px;color:var(--text3);}
+  .section-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .tabs{display:flex;gap:3px;background:var(--surface2);border-radius:var(--radius-sm);padding:4px;margin-bottom:22px;width:fit-content;}
+  .tab{padding:7px 16px;border-radius:6px;font-size:13.5px;font-weight:500;cursor:pointer;color:var(--text3);transition:all var(--transition);border:none;background:none;font-family:'DM Sans',sans-serif;}
+  .tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 6px rgba(0,0,0,0.28);}
+  .pill-tabs{display:flex;gap:7px;margin-bottom:18px;flex-wrap:wrap;}
+  .pill{padding:5px 14px;border-radius:20px;font-size:12.5px;font-weight:500;cursor:pointer;background:var(--surface2);color:var(--text2);border:1px solid var(--border);transition:all var(--transition);}
+  .pill.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
+  .plans-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+  .plan-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;transition:all var(--transition);}
+  .plan-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .reminder-chip{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);margin-bottom:7px;}
+  .reminder-chip.urgent{border-color:rgba(240,96,96,0.3);background:rgba(240,96,96,0.05);}
+  .reminder-chip.soon{border-color:rgba(232,168,56,0.3);background:rgba(232,168,56,0.05);}
+  .reminder-chip.ok{border-color:rgba(61,214,140,0.2);background:rgba(61,214,140,0.03);}
+  .alert{padding:12px 16px;border-radius:var(--radius-sm);border:1px solid;display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;}
+  .alert-warning{background:rgba(232,168,56,0.08);border-color:rgba(232,168,56,0.3);}
+  .alert-success{background:var(--green-dim);border-color:rgba(61,214,140,0.3);}
+  .alert-error{background:var(--red-dim);border-color:rgba(240,96,96,0.3);}
+  .seat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px;}
+  .seat{width:100%;aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;cursor:pointer;transition:all var(--transition);border:1.5px solid;line-height:1.2;}
+  .seat.available{background:var(--green-dim);border-color:var(--green);color:var(--green);}
+  .seat.available:hover{background:rgba(61,214,140,0.22);transform:scale(1.07);}
+  .seat.half{background:var(--yellow-dim);border-color:var(--yellow);color:var(--yellow);}
+  .seat.half:hover{background:rgba(245,197,66,0.24);transform:scale(1.07);}
+  .seat.occupied{background:var(--red-dim);border-color:var(--red);color:var(--red);}
+  .seat.occupied:hover{background:rgba(240,96,96,0.2);transform:scale(1.07);}
+  .seat-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+  .seat-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);}
+  .seat-legend-dot{width:12px;height:12px;border-radius:3px;border:1.5px solid;}
+  .bar-chart{display:flex;align-items:flex-end;gap:7px;height:110px;padding:8px 0;}
+  .bar-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:5px;}
+  .bar{width:100%;border-radius:4px 4px 0 0;background:var(--accent-dim);border:1px solid var(--accent);transition:height 0.6s ease;min-height:3px;}
+  .bar-label{font-size:10px;color:var(--text3);}
+  .bar-value{font-size:10.5px;color:var(--accent);font-weight:600;}
+  .empty-state{text-align:center;padding:52px 22px;}
+  .empty-icon{width:58px;height:58px;background:var(--surface2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;opacity:0.45;}
+  .empty-title{font-size:17px;font-weight:600;color:var(--text2);margin-bottom:6px;}
+  .empty-sub{font-size:13px;color:var(--text3);}
+  .divider{height:1px;background:var(--border);margin:16px 0;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;}
+  .w-full{width:100%;}.flex{display:flex;}.items-center{align-items:center;}.justify-between{justify-content:space-between;}
+  .gap-2{gap:8px;}.gap-3{gap:12px;}
+  .text-sm{font-size:13px;}.text-xs{font-size:11px;}.text-muted{color:var(--text3);}.text-accent{color:var(--accent);}.text-green{color:var(--green);}.text-red{color:var(--red);}.text-yellow{color:var(--yellow);}
+  .font-bold{font-weight:700;}.font-600{font-weight:600;}
+  .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:300;}
+  .sidebar-overlay{display:none;}
+  .mobile-toggle{display:none;}
+  @media(max-width:780px){
+    .sidebar{transform:translateX(-100%);}.sidebar.open{transform:translateX(0);}
+    .main{margin-left:0;}.content{padding:18px;}.topbar{padding:12px 18px;}
+    .mobile-toggle{display:flex;}.sidebar-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;}
+    .form-row{grid-template-columns:1fr;}.stats-grid{grid-template-columns:1fr 1fr;}
+  }
+`;
+
+// ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
+function Spinner({ size = 20 }) {
+  return <Icon name="spin" size={size} color="var(--accent)" />;
+}
+
+function ConfirmDialog({ title, message, onConfirm, onCancel, confirmLabel = "Confirm", danger = false }) {
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 400 }}>
+        <div className="modal-header"><h2 className="modal-title">{title}</h2><button className="btn btn-ghost btn-icon" onClick={onCancel}><Icon name="x" size={17} /></button></div>
+        <div className="modal-body" style={{ paddingBottom: 4 }}><p style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.6 }}>{message}</p></div>
+        <div className="modal-footer"><button className="btn btn-secondary" onClick={onCancel}>Cancel</button><button className={`btn ${danger ? "btn-danger" : "btn-primary"}`} onClick={onConfirm}>{confirmLabel}</button></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DATA HOOK ────────────────────────────────────────────────────────────────
+// Loads ALL data for the current library in one pass on mount & after mutations
+function useLibraryData(isLoggedIn) {
+  const [data, setData] = useState({ shifts: [], plans: [], students: [], subscriptions: [], reminders: [], expenses: [], totalSeats: 30 });
+  const [loading, setLoading] = useState(false);
+
+  const reload = useCallback(async (keys = null) => {
+    if (!isLoggedIn) return;
+    setLoading(true);
+    try {
+      const toLoad = keys || ["shifts", "plans", "students", "subscriptions", "reminders", "expenses"];
+      const results = await Promise.all(toLoad.map(k => api[k].list()));
+      const updates = {};
+      toLoad.forEach((k, i) => { updates[k] = results[i]; });
+      setData(prev => ({ ...prev, ...updates }));
+    } catch (err) {
+      console.error("Data reload error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => { if (isLoggedIn) reload(); }, [isLoggedIn]);
+
+  return { data, setData, reload, loading };
+}
+
+// ─── SEAT HELPERS (same logic as before, now uses data arrays not lib object) ─
+function getSeatStatus(seatNum, subscriptions, shifts) {
+  const active = (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0);
+  if (active.length === 0) return "available";
+  const totalShifts = (shifts || []).length;
+  if (totalShifts <= 1) return "occupied";
+  return active.length < totalShifts ? "half" : "occupied";
+}
+
+function getSeatOccupants(seatNum, subscriptions) {
+  return (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0);
+}
+
+function getAvailableShiftsForSeat(seatNum, subscriptions, shifts) {
+  const occupied = (subscriptions || []).filter(s => s.status === "active" && Number(s.seat_number) === seatNum && daysDiff(s.end_date) >= 0).map(s => s.shift_id);
+  return (shifts || []).filter(sh => !occupied.includes(sh.id));
+}
+
+// ─── SEAT PANEL ───────────────────────────────────────────────────────────────
+function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls = false }) {
+  const [tooltip, setTooltip] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const totalSeats = library?.total_seats || data.totalSeats || 30;
+
+  const updateTotal = async (n) => {
+    if (!n || n < 1) return;
+    setSaving(true);
+    try {
+      await api.auth.updateSeats(n);
+      onUpdate({ totalSeats: n });
+    } finally { setSaving(false); }
+  };
+
+  const status  = (n) => getSeatStatus(n, data.subscriptions, data.shifts);
+  const occs    = (n) => getSeatOccupants(n, data.subscriptions);
+  const freeShifts = (n) => getAvailableShiftsForSeat(n, data.subscriptions, data.shifts);
+
+  const handleClick = (n) => {
+    const s = status(n);
+    if (s === "available" && onCreateSubscription) { onCreateSubscription({ seatNumber: n, shiftId: "" }); return; }
+    setTooltip(tooltip === n ? null : n);
+  };
+
+  return (
+    <>
+      {showControls && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <span className="text-sm text-muted">Total seats:</span>
+          <input className="input" type="number" min="1" style={{ width: 78 }} defaultValue={totalSeats}
+            onBlur={e => { const n = Number(e.target.value); if (n !== totalSeats && n >= 1) updateTotal(n); }} />
+          {saving && <Spinner size={16} />}
+        </div>
+      )}
+      <div className="seat-legend">
+        {[["available","var(--green)","Free"],["half","var(--yellow)","Partially Occupied"],["occupied","var(--red)","Fully Occupied"]].map(([cls,color,label])=>(
+          <div key={cls} className="seat-legend-item"><div className="seat-legend-dot" style={{borderColor:color,background:`${color}22`}}/>{label}</div>
+        ))}
+      </div>
+      <div className="seat-grid">
+        {Array.from({length:totalSeats},(_,i)=>i+1).map(n=>{
+          const s=status(n);
+          return(
+            <div key={n} className={`seat ${s}`} onClick={()=>handleClick(n)} title={`Seat #${n}`}>
+              <span>{n}</span>
+              {s==="half"&&<div style={{width:5,height:5,borderRadius:"50%",background:"var(--yellow)",marginTop:2}}/>}
+              {s==="occupied"&&<div style={{width:5,height:5,borderRadius:"50%",background:"var(--red)",marginTop:2}}/>}
+            </div>
+          );
+        })}
+      </div>
+      {tooltip!==null&&(()=>{
+        const s=status(tooltip);
+        const oList=occs(tooltip);
+        const free=freeShifts(tooltip);
+        return(
+          <div className="modal-overlay" onClick={()=>setTooltip(null)}>
+            <div className="modal" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
+              <div className="modal-header"><h2 className="modal-title">Seat #{tooltip}</h2><button className="btn btn-ghost btn-icon" onClick={()=>setTooltip(null)}><Icon name="x" size={17}/></button></div>
+              <div className="modal-body" style={{paddingBottom:4}}>
+                <div style={{display:"flex",gap:8,marginBottom:14}}>
+                  <span className={`badge ${s==="available"?"badge-green":s==="half"?"badge-yellow":"badge-red"}`}>{s==="available"?"Free":s==="half"?"Half Occupied":"Fully Occupied"}</span>
+                  {free.map(sh=><span key={sh.id} className="badge badge-green" style={{fontSize:11}}>Avail: {sh.name}</span>)}
+                </div>
+                {oList.length>0&&<>
+                  <div className="section-title" style={{fontSize:11}}>Current Occupants</div>
+                  {oList.map((sub,i)=>(
+                    <div key={i} style={{background:"var(--surface3)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                      <div style={{display:"flex",justifyContent:"space-between"}}>
+                        <div><div style={{fontWeight:700,fontSize:14}}>{sub.student_name}</div><div className="text-xs text-muted">{sub.student_phone}</div></div>
+                        <div style={{textAlign:"right"}}>
+                          <div className="text-xs text-muted">Expires</div>
+                          <div style={{fontSize:13,fontWeight:600}}>{formatDate(sub.end_date)}</div>
+                          {(()=>{const d=daysDiff(sub.end_date);return<div className={`text-xs ${d<0?"text-red":d<=5?"text-yellow":"text-green"}`}>{d<0?`Expired ${Math.abs(d)}d ago`:d===0?"Today":`${d}d left`}</div>})()}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:7,marginTop:8,flexWrap:"wrap"}}>
+                        <span className="badge badge-blue" style={{fontSize:11}}>{sub.plan_name}</span>
+                        {sub.shift_name&&<span className="badge badge-purple" style={{fontSize:11}}>{sub.shift_name}</span>}
+                        <span className="badge badge-gold" style={{fontSize:11}}>{formatCurrency(sub.amount)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>}
+                {(s==="available"||s==="half")&&onCreateSubscription&&<>
+                  <div className="divider"/>
+                  <div style={{fontSize:13,color:"var(--text2)",marginBottom:10}}>{s==="half"?`${free.length} shift(s) still available.`:"Seat is free."}</div>
+                  <button className="btn btn-primary w-full" style={{justifyContent:"center"}} onClick={()=>{setTooltip(null);onCreateSubscription({seatNumber:tooltip,shiftId:free[0]?.id||""});}}>
+                    <Icon name="plus" size={15}/>Add Subscription for Seat #{tooltip}
+                  </button>
+                </>}
+              </div>
+              <div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setTooltip(null)}>Close</button></div>
+            </div>
+          </div>
+        );
+      })()}
+    </>
+  );
+}
+
+// ─── AUTH PAGE ────────────────────────────────────────────────────────────────
+function AuthPage({ onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ ownerName:"", email:"", password:"", libraryName:"", city:"" });
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const set = (k,v) => setForm(p=>({...p,[k]:v}));
+
+  const submit = async () => {
+    setError(""); setLoading(true);
+    try {
+      const result = mode === "register" ? await api.auth.register(form) : await api.auth.login(form);
+      setToken(result.token);
+      onAuth(result.library);
+    } catch (err) {
+      setError(err.message);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-bg"/>
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-icon"><Icon name="book" size={26} color="var(--accent)"/></div>
+          <h1 className="auth-title">Libra</h1>
+          <p className="auth-sub">Library Management System</p>
+        </div>
+        <h2 style={{fontSize:19,fontWeight:700,marginBottom:18,textAlign:"center"}}>{mode==="login"?"Welcome back":"Register your library"}</h2>
+        {error&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}>{error}</span></div>}
+        {mode==="register"&&<>
+          <div className="form-row">
+            <div className="form-group"><label className="label">Your Name</label><input className="input" placeholder="John Doe" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></div>
+            <div className="form-group"><label className="label">Library Name</label><input className="input" placeholder="Central Library" value={form.libraryName} onChange={e=>set("libraryName",e.target.value)}/></div>
+          </div>
+          <div className="form-group"><label className="label">City</label><input className="input" placeholder="City" value={form.city} onChange={e=>set("city",e.target.value)}/></div>
+        </>}
+        <div className="form-group"><label className="label">Email</label><input className="input" type="email" placeholder="email@library.com" value={form.email} onChange={e=>set("email",e.target.value)}/></div>
+        <div className="form-group"><label className="label">Password</label>
+          <div style={{position:"relative"}}>
+            <input className="input" type={showPass?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>set("password",e.target.value)} style={{paddingRight:42}} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+            <button className="btn btn-ghost btn-icon" onClick={()=>setShowPass(!showPass)} style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}><Icon name={showPass?"eyeoff":"eye"} size={15} color="var(--text3)"/></button>
+          </div>
+        </div>
+        <button className="btn btn-primary w-full" style={{justifyContent:"center",marginTop:6}} onClick={submit} disabled={loading}>
+          {loading?<Spinner size={16}/>:null}{mode==="login"?"Sign In":"Create Account"}
+        </button>
+        <div className="auth-toggle">{mode==="login"?<>Don't have an account? <a onClick={()=>{setMode("register");setError("");}}>Register</a></>:<>Already registered? <a onClick={()=>{setMode("login");setError("");}}>Sign In</a></>}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentReminders }) {
+  const items = [
+    {id:"dashboard",icon:"home",label:"Dashboard",section:"main"},
+    {id:"students",icon:"users",label:"Students",section:"manage"},
+    {id:"plans",icon:"tag",label:"Plans & Pricing",section:"manage"},
+    {id:"shifts",icon:"clock",label:"Shifts",section:"manage"},
+    {id:"subscriptions",icon:"id",label:"Subscriptions",section:"manage"},
+    {id:"seats",icon:"seat2",label:"Seat Map",section:"manage"},
+    {id:"reminders",icon:"bell",label:"Reminders",section:"manage",badge:urgentReminders>0?urgentReminders:null},
+    {id:"expenses",icon:"dollar",label:"Expenses",section:"manage"},
+    {id:"reports",icon:"chart",label:"Reports",section:"manage"},
+  ];
+  return(
+    <>
+      {isOpen&&<div className="sidebar-overlay" onClick={onClose}/>}
+      <aside className={`sidebar${isOpen?" open":""}`}>
+        <div className="sidebar-logo"><div className="logo-text">📚 Libra</div><div className="logo-sub">Library Manager</div></div>
+        <nav className="sidebar-nav">
+          <div className="nav-section"><div className="nav-section-title">Main</div>{items.filter(i=>i.section==="main").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}</button>)}</div>
+          <div className="nav-section"><div className="nav-section-title">Management</div>{items.filter(i=>i.section==="manage").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}{i.badge&&<span className="nbadge">{i.badge}</span>}</button>)}</div>
+        </nav>
+        <div className="sidebar-footer">
+          <div className="lib-info"><div className="lib-avatar">{library?.library_name?.[0]||"L"}</div><div><div style={{fontSize:13,fontWeight:600}}>{library?.library_name}</div><div style={{fontSize:11,color:"var(--text3)"}}>{library?.email}</div></div></div>
+          <button className="nav-item" onClick={onLogout} style={{color:"var(--red)",marginTop:3}}><Icon name="logout" size={16}/>Logout</button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
+  const [summary, setSummary] = useState(null);
+  const [loadingSum, setLoadingSum] = useState(true);
+
+  useEffect(() => {
+    api.reports.summary().then(setSummary).catch(console.error).finally(() => setLoadingSum(false));
+  }, [data]);   // re-fetch when data changes
+
+  const totalSeats = library?.total_seats || 30;
+  const freeCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts)==="available").length;
+  const halfCount  = Array.from({length:totalSeats},(_,i)=>i+1).filter(n=>getSeatStatus(n,data.subscriptions,data.shifts)==="half").length;
+
+  if (loadingSum) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:60}}><Spinner size={32}/></div>;
+
+  const months = summary?.revenueByMonth || [];
+  const maxRev = Math.max(...months.map(m=>Number(m.revenue||0)),1);
+
+  return(
+    <div>
+      {Number(summary?.expired_subscriptions)>0&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}><strong>{summary.expired_subscriptions}</strong> expired subscriptions need attention.</span></div>}
+      <div className="stats-grid">
+        <div className="stat-card blue"><div className="stat-icon"><Icon name="users" size={26} color="var(--blue)"/></div><div className="stat-label">Total Students</div><div className="stat-value">{summary?.total_students||0}</div><div className="stat-change">{summary?.active_students||0} active</div></div>
+        <div className="stat-card green"><div className="stat-icon"><Icon name="id" size={26} color="var(--green)"/></div><div className="stat-label">Active Subs</div><div className="stat-value">{summary?.active_subscriptions||0}</div><div className="stat-change" style={{color:Number(summary?.expiring_soon)>0?"var(--yellow)":"var(--text3)"}}>{Number(summary?.expiring_soon)>0?`${summary.expiring_soon} expiring soon`:"All on track"}</div></div>
+        <div className="stat-card gold"><div className="stat-icon"><Icon name="dollar" size={26} color="var(--accent)"/></div><div className="stat-label">Month Revenue</div><div className="stat-value">{formatCurrency(summary?.month_revenue||0)}</div><div className="stat-change">{formatCurrency((summary?.month_revenue||0)-(summary?.month_expenses||0))} net</div></div>
+        <div className="stat-card red"><div className="stat-icon"><Icon name="dollar" size={26} color="var(--red)"/></div><div className="stat-label">Month Expenses</div><div className="stat-value">{formatCurrency(summary?.month_expenses||0)}</div></div>
+        <div className="stat-card purple"><div className="stat-icon"><Icon name="seat2" size={26} color="var(--purple)"/></div><div className="stat-label">Seat Status</div><div className="stat-value">{freeCount+halfCount}/{totalSeats}</div><div className="stat-change">{freeCount} free · {halfCount} half</div></div>
+        <div className="stat-card gold"><div className="stat-icon"><Icon name="clock" size={26} color="var(--accent)"/></div><div className="stat-label">Shifts</div><div className="stat-value">{data.shifts?.length||0}</div></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1.2fr",gap:18,marginBottom:22}}>
+        <div className="card">
+          <div className="section-title">Revenue (6 Months)</div>
+          <div className="bar-chart">{months.map((m,i)=><div key={i} className="bar-col"><div className="bar-value">{Number(m.revenue)>0?`₹${(Number(m.revenue)/1000).toFixed(0)}k`:""}</div><div className="bar" style={{height:`${(Number(m.revenue)/maxRev)*80}px`}}/><div className="bar-label">{m.month}</div></div>)}</div>
+        </div>
+        <div className="card">
+          <div className="section-title" style={{marginBottom:12}}>Seat Map — Click to Subscribe</div>
+          <SeatPanel data={data} library={library} onUpdate={onUpdate} onCreateSubscription={onCreateSubscription}/>
+        </div>
+      </div>
+      <div className="card" style={{padding:0}}>
+        <div style={{padding:"18px 18px 0"}}><div className="section-title">Recent Subscriptions</div></div>
+        <div className="table-container">
+          <table className="table">
+            <thead><tr><th>Student</th><th>Plan</th><th>Shift</th><th>Amount</th><th>Expiry</th><th>Status</th></tr></thead>
+            <tbody>
+              {(summary?.recentSubscriptions||[]).length===0?<tr><td colSpan={6}><div className="text-muted text-sm" style={{textAlign:"center",padding:32}}>No subscriptions yet</div></td></tr>
+                :(summary?.recentSubscriptions||[]).map(s=>{
+                  const diff=daysDiff(s.end_date);
+                  return(<tr key={s.id}><td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td><td className="text-sm">{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td><td className="text-accent font-bold">{formatCurrency(s.amount)}</td><td className="text-sm">{formatDate(s.end_date)}</td><td>{s.status!=="active"?<span className="badge badge-gray">{s.status}</span>:diff<0?<span className="badge badge-red">Expired</span>:diff<=5?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td></tr>);
+                })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── GENERIC CRUD PAGES (condensed versions using API) ────────────────────────
+
+function Shifts({ data, reload }) {
+  const [showModal, setShowModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({name:"",startTime:"",endTime:"",description:""});
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const open=(sh=null)=>{setEdit(sh);setForm(sh?{name:sh.name,startTime:sh.start_time,endTime:sh.end_time,description:sh.description||""}:{name:"",startTime:"",endTime:"",description:""});setShowModal(true);};
+  const save=async()=>{if(!form.name||!form.startTime||!form.endTime)return;setSaving(true);try{if(edit)await api.shifts.update(edit.id,{name:form.name,startTime:form.startTime,endTime:form.endTime,description:form.description});else await api.shifts.create({name:form.name,startTime:form.startTime,endTime:form.endTime,description:form.description});await reload(["shifts"]);setShowModal(false);}finally{setSaving(false);}};
+  const del=async(id)=>{await api.shifts.delete(id);await reload(["shifts"]);setConfirmDel(null);};
+
+  return(
+    <div>
+      {confirmDel&&<ConfirmDialog title="Delete Shift?" message="Existing subscriptions won't be affected." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+      <div className="page-header"><div className="page-header-left"><h1>Shifts</h1><p>Define library time slots</p></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add Shift</button></div>
+      {data.shifts.length===0?<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="clock" size={26} color="var(--text3)"/></div><div className="empty-title">No shifts defined</div><div className="empty-sub">Create shifts like Morning, Evening, Full Day</div></div></div>
+        :<div className="plans-grid">{data.shifts.map(sh=>{const usedCount=(data.subscriptions||[]).filter(s=>s.shift_id===sh.id&&s.status==="active").length;return(<div key={sh.id} className="plan-card"><div style={{display:"flex",justifyContent:"space-between"}}><div className="lib-avatar" style={{width:36,height:36,borderRadius:10,background:"var(--purple-dim)",border:"1px solid var(--purple)",color:"var(--purple)"}}><Icon name="clock" size={16}/></div><span className="badge badge-gray">{usedCount} active</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,marginTop:12,marginBottom:4}}>{sh.name}</div><div style={{fontSize:13,color:"var(--text2)"}}>{sh.start_time} — {sh.end_time}</div>{sh.description&&<div className="text-sm text-muted" style={{marginTop:4}}>{sh.description}</div>}<div style={{display:"flex",gap:8,marginTop:12}}><button className="btn btn-secondary btn-sm" onClick={()=>open(sh)}><Icon name="edit" size={13}/>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setConfirmDel(sh.id)}><Icon name="trash" size={13}/></button></div></div>);})}</div>}
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Create"} Shift</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Shift Name *</label><input className="input" placeholder="Morning, Evening, Full Day…" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-row"><div className="form-group"><label className="label">Start Time *</label><input className="input" type="time" value={form.startTime} onChange={e=>set("startTime",e.target.value)}/></div><div className="form-group"><label className="label">End Time *</label><input className="input" type="time" value={form.endTime} onChange={e=>set("endTime",e.target.value)}/></div></div><div className="form-group"><label className="label">Description</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Create"}</button></div></div></div>}
+    </div>
+  );
+}
+
+function Students({ data, reload }) {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({name:"",phone:"",email:"",address:"",idProof:"",notes:""});
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const open=(s=null)=>{setEdit(s);setForm(s?{name:s.name,phone:s.phone,email:s.email||"",address:s.address||"",idProof:s.id_proof||"",notes:s.notes||""}:{name:"",phone:"",email:"",address:"",idProof:"",notes:""});setShowModal(true);};
+  const save=async()=>{if(!form.name||!form.phone)return;setSaving(true);try{if(edit)await api.students.update(edit.id,{name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes,status:edit.status});else await api.students.create({name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes});await reload(["students"]);setShowModal(false);}finally{setSaving(false);}};
+  const del=async(id)=>{await api.students.delete(id);await reload(["students"]);setConfirmDel(null);};
+  const toggle=async(s)=>{await api.students.update(s.id,{name:s.name,phone:s.phone,email:s.email,address:s.address,idProof:s.id_proof,notes:s.notes,status:s.status==="active"?"inactive":"active"});await reload(["students"]);};
+
+  const students=(data.students||[]).filter(s=>{const q=search.toLowerCase();return(s.name?.toLowerCase().includes(q)||s.phone?.includes(q))&&(filter==="all"||s.status===filter);});
+
+  return(
+    <div>
+      {confirmDel&&<ConfirmDialog title="Delete Student?" message="This will permanently remove the student." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+      <div className="page-header"><div className="page-header-left"><h1>Students</h1><p>{data.students?.length||0} registered</p></div><div className="flex items-center gap-2"><div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add</button></div></div>
+      <div className="pill-tabs">{["all","active","inactive"].map(f=><div key={f} className={`pill${filter===f?" active":""}`} onClick={()=>setFilter(f)} style={{textTransform:"capitalize"}}>{f}</div>)}</div>
+      <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Joined</th><th>Subscription</th><th>Status</th><th></th></tr></thead><tbody>
+        {students.length===0?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="users" size={24} color="var(--text3)"/></div><div className="empty-title">No students</div></div></td></tr>
+          :students.map((s,i)=>{
+            const sub=s.active_subscription;
+            const diff=sub?daysDiff(sub.end_date):null;
+            return(<tr key={s.id}><td className="text-xs text-muted">{i+1}</td><td><div style={{display:"flex",alignItems:"center",gap:9}}><div className="avatar" style={{background:"var(--accent-dim)",color:"var(--accent)"}}>{s.name?.[0]?.toUpperCase()}</div><div><div style={{fontWeight:600}}>{s.name}</div><div className="text-xs text-muted">{s.address||"—"}</div></div></div></td><td className="text-sm">{s.phone}</td><td className="text-sm text-muted">{s.email||"—"}</td><td className="text-sm text-muted">{formatDate(s.join_date)}</td><td>{sub?(diff<=3?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">{sub.plan_name}</span>):<span className="badge badge-gray">None</span>}</td><td><button onClick={()=>toggle(s)} className={`badge ${s.status==="active"?"badge-green":"badge-gray"}`} style={{cursor:"pointer",border:"none"}}>{s.status}</button></td><td><div className="flex gap-2"><button className="btn btn-ghost btn-icon" onClick={()=>open(s)}><Icon name="edit" size={14}/></button><button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(s.id)} style={{color:"var(--red)"}}><Icon name="trash" size={14}/></button></div></td></tr>);
+          })}
+      </tbody></table></div></div>
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Add"} Student</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-row"><div className="form-group"><label className="label">Full Name *</label><input className="input" placeholder="Full name" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-group"><label className="label">Phone *</label><input className="input" placeholder="Phone" value={form.phone} onChange={e=>set("phone",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Email</label><input className="input" placeholder="Email" value={form.email} onChange={e=>set("email",e.target.value)}/></div><div className="form-group"><label className="label">ID Proof</label><input className="input" placeholder="Aadhar/PAN" value={form.idProof} onChange={e=>set("idProof",e.target.value)}/></div></div><div className="form-group"><label className="label">Address</label><input className="input" placeholder="Address" value={form.address} onChange={e=>set("address",e.target.value)}/></div><div className="form-group"><label className="label">Notes</label><textarea className="input textarea" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Add"}</button></div></div></div>}
+    </div>
+  );
+}
+
+function Plans({ data, reload }) {
+  const [showModal, setShowModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({name:"",duration:30,price:"",shiftId:"",description:""});
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const open=(p=null)=>{setEdit(p);setForm(p?{name:p.name,duration:p.duration,price:p.price,shiftId:p.shift_id||"",description:p.description||""}:{name:"",duration:30,price:"",shiftId:"",description:""});setShowModal(true);};
+  const save=async()=>{if(!form.name||!form.price)return;setSaving(true);try{if(edit)await api.plans.update(edit.id,{name:form.name,duration:form.duration,price:form.price,shiftId:form.shiftId,description:form.description});else await api.plans.create({name:form.name,duration:form.duration,price:form.price,shiftId:form.shiftId,description:form.description});await reload(["plans"]);setShowModal(false);}finally{setSaving(false);}};
+  const del=async(id)=>{await api.plans.delete(id);await reload(["plans"]);setConfirmDel(null);};
+
+  return(
+    <div>
+      {confirmDel&&<ConfirmDialog title="Delete Plan?" message="Existing subscriptions won't be affected." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+      <div className="page-header"><div className="page-header-left"><h1>Plans & Pricing</h1></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>New Plan</button></div>
+      {data.shifts.length===0&&<div className="alert alert-warning"><Icon name="warn" size={15} color="var(--accent)"/><span style={{fontSize:13}}>No shifts defined yet. Go to Shifts first.</span></div>}
+      {data.plans.length===0?<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="tag" size={24} color="var(--text3)"/></div><div className="empty-title">No plans yet</div></div></div>
+        :<div className="plans-grid">{data.plans.map(plan=>{const shift=(data.shifts||[]).find(s=>s.id===plan.shift_id);const used=(data.subscriptions||[]).filter(s=>s.plan_id===plan.id&&s.status==="active").length;return(<div key={plan.id} className="plan-card"><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{shift&&<span className="badge badge-purple" style={{fontSize:11}}>{shift.name}</span>}<span className="badge badge-gray">{plan.duration}d</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,marginTop:12}}>{plan.name}</div><div style={{fontSize:26,fontWeight:700,color:"var(--accent)",margin:"10px 0 4px"}}>{formatCurrency(plan.price)}<span style={{fontSize:12,fontWeight:400,color:"var(--text3)"}}>/period</span></div>{plan.description&&<div className="text-sm text-muted" style={{marginBottom:8}}>{plan.description}</div>}<div className="text-sm text-muted"><strong style={{color:"var(--text)"}}>{used}</strong> active subscribers</div><div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-secondary btn-sm" onClick={()=>open(plan)}><Icon name="edit" size={13}/>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setConfirmDel(plan.id)}><Icon name="trash" size={13}/></button></div></div>);})}</div>}
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"New"} Plan</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-row"><div className="form-group"><label className="label">Plan Name *</label><input className="input" placeholder="Monthly Premium" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-group"><label className="label">Price (₹) *</label><input className="input" type="number" placeholder="999" value={form.price} onChange={e=>set("price",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Duration (Days)</label><input className="input" type="number" value={form.duration} onChange={e=>set("duration",Number(e.target.value))}/></div><div className="form-group"><label className="label">Shift</label><select className="input select" value={form.shiftId} onChange={e=>set("shiftId",e.target.value)}><option value="">No specific shift</option>{(data.shifts||[]).map(s=><option key={s.id} value={s.id}>{s.name} ({s.start_time}–{s.end_time})</option>)}</select></div></div><div className="form-group"><label className="label">Description</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Create"}</button></div></div></div>}
+    </div>
+  );
+}
+
+function Subscriptions({ data, reload, prefill, onClearPrefill }) {
+  const [showModal, setShowModal] = useState(!!prefill);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [form, setForm] = useState({studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:""});
+  const [saving, setSaving] = useState(false);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  useEffect(()=>{if(prefill){setForm(p=>({...p,seatNumber:String(prefill.seatNumber||""),shiftId:prefill.shiftId||""}));setShowModal(true);}}, [prefill]);
+
+  const selectedPlan=(data.plans||[]).find(p=>p.id===form.planId);
+  const effectiveAmount=selectedPlan?Math.max(0,Number(selectedPlan.price)-Number(form.discount||0)):0;
+  const endDate=selectedPlan?addDays(form.startDate,selectedPlan.duration):"";
+
+  const save=async()=>{
+    if(!form.studentId||!form.planId)return;
+    setSaving(true);
+    const selectedShift=(data.shifts||[]).find(s=>s.id===form.shiftId);
+    try{
+      await api.subscriptions.create({studentId:form.studentId,planId:form.planId,planName:selectedPlan.name,shiftId:form.shiftId||null,shiftName:selectedShift?.name||"",seatNumber:form.seatNumber?Number(form.seatNumber):null,amount:effectiveAmount,discount:Number(form.discount||0),paymentMode:form.paymentMode,startDate:form.startDate,endDate,notes:form.notes});
+      await reload(["subscriptions","reminders"]);
+      setShowModal(false);setForm({studentId:"",planId:"",startDate:today(),seatNumber:"",shiftId:"",paymentMode:"cash",discount:0,notes:""});
+      if(onClearPrefill)onClearPrefill();
+    }finally{setSaving(false);}
+  };
+
+  const cancel=async(id)=>{await api.subscriptions.cancel(id);await reload(["subscriptions"]);};
+  const renew=(sub)=>{setForm({studentId:sub.student_id,planId:sub.plan_id||"",startDate:today(),seatNumber:String(sub.seat_number||""),shiftId:sub.shift_id||"",paymentMode:"cash",discount:0,notes:"Renewal"});setShowModal(true);};
+
+  const occupiedSeatShifts=(data.subscriptions||[]).filter(s=>s.status==="active"&&s.seat_number&&daysDiff(s.end_date)>=0);
+  const isTaken=(seatNum,shiftId)=>occupiedSeatShifts.some(s=>Number(s.seat_number)===Number(seatNum)&&s.shift_id===shiftId);
+
+  const subs=(data.subscriptions||[]).filter(s=>{const q=search.toLowerCase();const match=s.student_name?.toLowerCase().includes(q)||s.plan_name?.toLowerCase().includes(q);const f=filter==="all"||(filter==="active"&&s.status==="active"&&daysDiff(s.end_date)>=0)||(filter==="expiring"&&s.status==="active"&&daysDiff(s.end_date)>=0&&daysDiff(s.end_date)<=7)||(filter==="expired"&&(s.status!=="active"||daysDiff(s.end_date)<0));return match&&f;}).sort((a,b)=>b.created_at>a.created_at?1:-1);
+
+  const totalSeats=30;
+
+  return(
+    <div>
+      <div className="page-header"><div className="page-header-left"><h1>Subscriptions</h1><p>{(data.subscriptions||[]).filter(s=>s.status==="active"&&daysDiff(s.end_date)>=0).length} active</p></div><div className="flex items-center gap-2"><div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div><button className="btn btn-primary" onClick={()=>{setForm({studentId:"",planId:"",startDate:today(),seatNumber:"",shiftId:"",paymentMode:"cash",discount:0,notes:""});setShowModal(true);}}><Icon name="plus" size={15}/>New</button></div></div>
+      <div className="pill-tabs">{[["all","All"],["active","Active"],["expiring","Expiring"],["expired","Expired"]].map(([v,l])=><div key={v} className={`pill${filter===v?" active":""}`} onClick={()=>setFilter(v)}>{l}</div>)}</div>
+      <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>Student</th><th>Plan</th><th>Shift</th><th>Seat</th><th>Amount</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>
+        {subs.length===0?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="id" size={24} color="var(--text3)"/></div><div className="empty-title">No subscriptions</div></div></td></tr>
+          :subs.map(s=>{const diff=daysDiff(s.end_date);const exp=s.status!=="active"||diff<0;return(<tr key={s.id}><td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td><td className="text-sm">{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td><td>{s.seat_number?<span className="badge badge-blue">#{s.seat_number}</span>:<span className="text-muted text-xs">—</span>}</td><td className="text-accent font-bold">{formatCurrency(s.amount)}</td><td className="text-sm">{formatDate(s.end_date)}</td><td>{exp?<span className="badge badge-red">Expired</span>:diff<=3?<span className="badge badge-red">Exp {diff}d</span>:diff<=7?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td><td><div className="flex gap-2"><button className="btn btn-secondary btn-sm" onClick={()=>renew(s)}>Renew</button>{!exp&&<button className="btn btn-danger btn-sm" onClick={()=>cancel(s.id)}>Cancel</button>}</div></td></tr>);
+          })}
+      </tbody></table></div></div>
+      {showModal&&<div className="modal-overlay"><div className="modal modal-lg"><div className="modal-header"><h2 className="modal-title">New Subscription{form.seatNumber?` — Seat #${form.seatNumber}`:""}</h2><button className="btn btn-ghost btn-icon" onClick={()=>{setShowModal(false);if(onClearPrefill)onClearPrefill();}}><Icon name="x" size={17}/></button></div><div className="modal-body">
+        <div className="form-row"><div className="form-group"><label className="label">Student *</label><select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}><option value="">Select student…</option>{(data.students||[]).filter(s=>s.status==="active").map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}</select></div><div className="form-group"><label className="label">Plan *</label><select className="input select" value={form.planId} onChange={e=>{set("planId",e.target.value);const pl=(data.plans||[]).find(p=>p.id===e.target.value);if(pl?.shift_id)set("shiftId",pl.shift_id);}}><option value="">Select plan…</option>{(data.plans||[]).map(p=><option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)} / {p.duration}d</option>)}</select></div></div>
+        {selectedPlan&&<div className="alert alert-success"><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>Duration: <strong>{selectedPlan.duration}d</strong> · End: <strong>{formatDate(endDate)}</strong> · Payable: <strong>{formatCurrency(effectiveAmount)}</strong></span></div>}
+        <div className="form-row"><div className="form-group"><label className="label">Shift</label><select className="input select" value={form.shiftId} onChange={e=>set("shiftId",e.target.value)}><option value="">No specific shift</option>{(data.shifts||[]).map(sh=>{const taken=form.seatNumber&&isTaken(form.seatNumber,sh.id);return<option key={sh.id} value={sh.id} disabled={taken}>{sh.name} ({sh.start_time}–{sh.end_time}){taken?" — Occupied":""}</option>;})}</select></div><div className="form-group"><label className="label">Seat</label><select className="input select" value={form.seatNumber} onChange={e=>set("seatNumber",e.target.value)}><option value="">No seat</option>{Array.from({length:totalSeats},(_,i)=>i+1).map(n=>{const s=getSeatStatus(n,data.subscriptions,data.shifts);return<option key={n} value={n} disabled={s==="occupied"&&String(n)!==form.seatNumber}>Seat #{n}{s==="half"?" (Half free)":s==="occupied"?" (Full)":""}</option>;})}</select></div></div>
+        <div className="form-row"><div className="form-group"><label className="label">Start Date</label><input className="input" type="date" value={form.startDate} onChange={e=>set("startDate",e.target.value)}/></div><div className="form-group"><label className="label">Discount (₹)</label><input className="input" type="number" placeholder="0" value={form.discount} onChange={e=>set("discount",e.target.value)}/></div></div>
+        <div className="form-row"><div className="form-group"><label className="label">Payment Mode</label><select className="input select" value={form.paymentMode} onChange={e=>set("paymentMode",e.target.value)}>{["cash","upi","card","netbanking","cheque"].map(m=><option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Notes</label><input className="input" placeholder="Optional…" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div></div>
+      </div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>{setShowModal(false);if(onClearPrefill)onClearPrefill();}}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Create Subscription</button></div></div></div>}
+    </div>
+  );
+}
+
+function SeatsPage({ data, library, reload, onUpdate, onCreateSubscription }) {
+  return(
+    <div>
+      <div className="page-header"><div className="page-header-left"><h1>Seat Map</h1></div></div>
+      <div className="card"><SeatPanel data={data} library={library} onUpdate={onUpdate} onCreateSubscription={onCreateSubscription} showControls={true}/></div>
+    </div>
+  );
+}
+
+function Reminders({ data, reload }) {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({studentId:"",message:"",dueDate:today(),type:"payment"});
+  const [saving, setSaving] = useState(false);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const save=async()=>{if(!form.message||!form.dueDate)return;setSaving(true);try{await api.reminders.create({studentId:form.studentId||null,message:form.message,type:form.type,dueDate:form.dueDate});await reload(["reminders"]);setShowModal(false);setForm({studentId:"",message:"",dueDate:today(),type:"payment"});}finally{setSaving(false);}};
+  const toggle=async(id)=>{await api.reminders.toggle(id);await reload(["reminders"]);};
+  const del=async(id)=>{await api.reminders.delete(id);await reload(["reminders"]);};
+
+  const reminders=[...(data.reminders||[])].sort((a,b)=>a.due_date>b.due_date?1:-1);
+  const pending=reminders.filter(r=>!r.done),done=reminders.filter(r=>r.done);
+  const getClass=(r)=>{if(r.done)return"ok";const d=daysDiff(r.due_date);if(d<0||d<=3)return"urgent";if(d<=7)return"soon";return"ok";};
+  const typeColor={payment:"badge-red",renewal:"badge-gold",custom:"badge-blue",followup:"badge-purple"};
+
+  return(
+    <div>
+      <div className="page-header"><div className="page-header-left"><h1>Reminders</h1><p>{pending.length} pending</p></div><button className="btn btn-primary" onClick={()=>setShowModal(true)}><Icon name="plus" size={15}/>Add</button></div>
+      {pending.length>0&&<div style={{marginBottom:24}}><div className="section-title"><Icon name="bell" size={13} color="var(--text3)"/>Pending ({pending.length})</div>{pending.map(r=>{const diff=daysDiff(r.due_date);return(<div key={r.id} className={`reminder-chip ${getClass(r)}`}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}><span className={`badge ${typeColor[r.type]||"badge-gray"}`} style={{textTransform:"capitalize",fontSize:11}}>{r.type}</span>{r.student_name&&<span style={{fontSize:13,fontWeight:600}}>{r.student_name}</span>}<span className="text-xs text-muted">{r.student_phone}</span></div><div style={{fontSize:13.5}}>{r.message}</div><div style={{display:"flex",gap:12,marginTop:5}}><span className="text-xs text-muted">Due: {formatDate(r.due_date)}</span>{diff<0?<span className="text-xs text-red font-bold">Overdue {Math.abs(diff)}d</span>:diff===0?<span className="text-xs text-accent font-bold">Due today</span>:<span className="text-xs" style={{color:diff<=3?"var(--red)":"var(--text3)"}}>in {diff}d</span>}</div></div><div className="flex gap-2"><button className="btn btn-ghost btn-icon" onClick={()=>toggle(r.id)}><Icon name="check" size={15} color="var(--green)"/></button><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={15} color="var(--red)"/></button></div></div>);})}</div>}
+      {done.length>0&&<div><div className="section-title">Completed ({done.length})</div>{done.map(r=><div key={r.id} className="reminder-chip ok" style={{opacity:0.5}}><Icon name="check" size={14} color="var(--green)"/><div style={{flex:1}}><div style={{fontSize:13,textDecoration:"line-through"}}>{r.message}</div><div className="text-xs text-muted">Due {formatDate(r.due_date)}</div></div><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={14} color="var(--text3)"/></button></div>)}</div>}
+      {reminders.length===0&&<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="bell" size={24} color="var(--text3)"/></div><div className="empty-title">No reminders</div><div className="empty-sub">Renewal reminders are auto-created on subscription</div></div></div>}
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">Add Reminder</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Student (optional)</label><select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}><option value="">No specific student</option>{(data.students||[]).map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}</select></div><div className="form-row"><div className="form-group"><label className="label">Type</label><select className="input select" value={form.type} onChange={e=>set("type",e.target.value)}>{["payment","renewal","followup","custom"].map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Due Date</label><input className="input" type="date" value={form.dueDate} onChange={e=>set("dueDate",e.target.value)}/></div></div><div className="form-group"><label className="label">Message *</label><textarea className="input textarea" placeholder="Reminder message…" value={form.message} onChange={e=>set("message",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Add</button></div></div></div>}
+    </div>
+  );
+}
+
+function Expenses({ data, reload }) {
+  const [showModal, setShowModal] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [form, setForm] = useState({title:"",amount:"",category:"utilities",date:today(),description:"",paymentMode:"cash"});
+  const [saving, setSaving] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const cats=["utilities","rent","salary","maintenance","supplies","marketing","taxes","other"];
+  const catColor={utilities:"badge-blue",rent:"badge-red",salary:"badge-gold",maintenance:"badge-purple",supplies:"badge-green",marketing:"badge-blue",taxes:"badge-red",other:"badge-gray"};
+  const thisMonth=new Date().toISOString().slice(0,7);
+
+  const save=async()=>{if(!form.title||!form.amount)return;setSaving(true);try{await api.expenses.create({title:form.title,amount:Number(form.amount),category:form.category,date:form.date,paymentMode:form.paymentMode,description:form.description});await reload(["expenses"]);setShowModal(false);setForm({title:"",amount:"",category:"utilities",date:today(),description:"",paymentMode:"cash"});}finally{setSaving(false);}};
+  const del=async(id)=>{await api.expenses.delete(id);await reload(["expenses"]);setConfirmDel(null);};
+
+  const expenses=(data.expenses||[]).filter(e=>filter==="month"?e.date?.startsWith(thisMonth):true).sort((a,b)=>b.date>a.date?1:-1);
+  const total=expenses.reduce((s,e)=>s+Number(e.amount||0),0);
+
+  return(
+    <div>
+      {confirmDel&&<ConfirmDialog title="Delete Expense?" message="This record will be permanently deleted." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+      <div className="page-header"><div className="page-header-left"><h1>Expenses</h1></div><button className="btn btn-primary" onClick={()=>setShowModal(true)}><Icon name="plus" size={15}/>Add Expense</button></div>
+      <div className="stats-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:20}}>
+        <div className="stat-card red"><div className="stat-label">Total Shown</div><div className="stat-value">{formatCurrency(total)}</div></div>
+        <div className="stat-card gold"><div className="stat-label">This Month</div><div className="stat-value">{formatCurrency((data.expenses||[]).filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount),0))}</div></div>
+        <div className="stat-card blue"><div className="stat-label">Transactions</div><div className="stat-value">{expenses.length}</div></div>
+      </div>
+      <div className="pill-tabs"><div className={`pill${filter==="all"?" active":""}`} onClick={()=>setFilter("all")}>All Time</div><div className={`pill${filter==="month"?" active":""}`} onClick={()=>setFilter("month")}>This Month</div></div>
+      <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>Title</th><th>Category</th><th>Date</th><th>Amount</th><th>Payment</th><th></th></tr></thead><tbody>
+        {expenses.length===0?<tr><td colSpan={6}><div className="empty-state"><div className="empty-icon"><Icon name="dollar" size={24} color="var(--text3)"/></div><div className="empty-title">No expenses</div></div></td></tr>
+          :expenses.map(e=><tr key={e.id}><td><div style={{fontWeight:600}}>{e.title}</div>{e.description&&<div className="text-xs text-muted">{e.description}</div>}</td><td><span className={`badge ${catColor[e.category]||"badge-gray"}`} style={{textTransform:"capitalize",fontSize:11}}>{e.category}</span></td><td className="text-sm text-muted">{formatDate(e.date)}</td><td className="text-red font-bold">{formatCurrency(e.amount)}</td><td><span className="badge badge-gray" style={{textTransform:"capitalize",fontSize:11}}>{e.payment_mode}</span></td><td><button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(e.id)} style={{color:"var(--red)"}}><Icon name="trash" size={14}/></button></td></tr>)}
+      </tbody></table></div></div>
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">Add Expense</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Title *</label><input className="input" placeholder="Electricity bill" value={form.title} onChange={e=>set("title",e.target.value)}/></div><div className="form-row"><div className="form-group"><label className="label">Amount (₹) *</label><input className="input" type="number" placeholder="0" value={form.amount} onChange={e=>set("amount",e.target.value)}/></div><div className="form-group"><label className="label">Date</label><input className="input" type="date" value={form.date} onChange={e=>set("date",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Category</label><select className="input select" value={form.category} onChange={e=>set("category",e.target.value)}>{cats.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Payment Mode</label><select className="input select" value={form.paymentMode} onChange={e=>set("paymentMode",e.target.value)}>{["cash","upi","card","netbanking","cheque"].map(m=><option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></div></div><div className="form-group"><label className="label">Notes</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Add</button></div></div></div>}
+    </div>
+  );
+}
+
+function Reports({ data }) {
+  const [tab, setTab] = useState("overview");
+  const [period, setPeriod] = useState("all");
+  const thisMonth=new Date().toISOString().slice(0,7);
+  const filterP=(arr,key)=>{if(period==="month")return arr.filter(i=>i[key]?.startsWith(thisMonth));if(period==="year")return arr.filter(i=>i[key]?.startsWith(new Date().getFullYear().toString()));return arr;};
+  const subs=filterP(data.subscriptions||[],"start_date");
+  const expenses=filterP(data.expenses||[],"date");
+  const totalRevenue=subs.reduce((s,x)=>s+Number(x.amount||0),0);
+  const totalExpenses=expenses.reduce((s,x)=>s+Number(x.amount||0),0);
+  const netProfit=totalRevenue-totalExpenses;
+  const planStats=(data.plans||[]).map(p=>({name:p.name,count:subs.filter(s=>s.plan_id===p.id).length,revenue:subs.filter(s=>s.plan_id===p.id).reduce((sum,s)=>sum+Number(s.amount||0),0)})).sort((a,b)=>b.revenue-a.revenue);
+  const maxPR=Math.max(...planStats.map(p=>p.revenue),1);
+  const cats=["utilities","rent","salary","maintenance","supplies","marketing","taxes","other"];
+  const expByCat=cats.map(c=>({cat:c,total:expenses.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0)})).filter(e=>e.total>0).sort((a,b)=>b.total-a.total);
+  const maxEC=Math.max(...expByCat.map(e=>e.total),1);
+
+  return(
+    <div>
+      <div className="page-header"><div className="page-header-left"><h1>Reports & Analytics</h1></div><div className="pill-tabs" style={{marginBottom:0}}>{[["all","All Time"],["month","This Month"],["year","This Year"]].map(([v,l])=><div key={v} className={`pill${period===v?" active":""}`} onClick={()=>setPeriod(v)}>{l}</div>)}</div></div>
+      <div className="stats-grid" style={{gridTemplateColumns:"repeat(4,1fr)",marginBottom:22}}>
+        <div className="stat-card green"><div className="stat-label">Revenue</div><div className="stat-value">{formatCurrency(totalRevenue)}</div></div>
+        <div className="stat-card red"><div className="stat-label">Expenses</div><div className="stat-value">{formatCurrency(totalExpenses)}</div></div>
+        <div className="stat-card gold"><div className="stat-label">Net Profit</div><div className="stat-value" style={{color:netProfit>=0?"var(--green)":"var(--red)"}}>{formatCurrency(netProfit)}</div></div>
+        <div className="stat-card blue"><div className="stat-label">Subscriptions</div><div className="stat-value">{subs.length}</div></div>
+      </div>
+      <div className="tabs">{[["overview","Overview"],["students","Students"],["subscriptions","Subscriptions"],["expenses","Expenses"]].map(([v,l])=><button key={v} className={`tab${tab===v?" active":""}`} onClick={()=>setTab(v)}>{l}</button>)}</div>
+      {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+        <div className="card"><div className="section-title">Revenue by Plan</div>{planStats.length===0?<div className="text-muted text-sm">No data</div>:planStats.map(p=><div key={p.name} style={{marginBottom:13}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span className="text-sm font-bold">{p.name}</span><span className="text-sm text-accent">{formatCurrency(p.revenue)}</span></div><div style={{height:7,background:"var(--surface3)",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${(p.revenue/maxPR)*100}%`,background:"var(--accent)",borderRadius:4,transition:"width 0.6s ease"}}/></div><div className="text-xs text-muted" style={{marginTop:3}}>{p.count} subscriptions</div></div>)}</div>
+        <div className="card"><div className="section-title">Expenses by Category</div>{expByCat.length===0?<div className="text-muted text-sm">No data</div>:expByCat.map(e=><div key={e.cat} style={{marginBottom:13}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><span className="text-sm font-bold" style={{textTransform:"capitalize"}}>{e.cat}</span><span className="text-sm text-red">{formatCurrency(e.total)}</span></div><div style={{height:7,background:"var(--surface3)",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${(e.total/maxEC)*100}%`,background:"var(--red)",borderRadius:4,transition:"width 0.6s ease"}}/></div></div>)}</div>
+      </div>}
+      {tab==="students"&&<div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Joined</th><th>Subscriptions</th><th>Total Paid</th><th>Status</th></tr></thead><tbody>
+        {(data.students||[]).length===0?<tr><td colSpan={7}><div className="text-muted text-sm" style={{textAlign:"center",padding:32}}>No students</div></td></tr>
+          :(data.students||[]).map((s,i)=>{const stuSubs=(data.subscriptions||[]).filter(sub=>sub.student_id===s.id);return(<tr key={s.id}><td className="text-xs text-muted">{i+1}</td><td style={{fontWeight:600}}>{s.name}</td><td className="text-sm">{s.phone}</td><td className="text-sm text-muted">{formatDate(s.join_date)}</td><td><span className="badge badge-blue">{stuSubs.length}</span></td><td className="text-accent font-bold">{formatCurrency(stuSubs.reduce((sum,sub)=>sum+Number(sub.amount||0),0))}</td><td><span className={`badge ${s.status==="active"?"badge-green":"badge-gray"}`}>{s.status}</span></td></tr>);})}
+      </tbody></table></div></div>}
+      {tab==="subscriptions"&&<div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>Student</th><th>Plan</th><th>Shift</th><th>Start</th><th>End</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+        {subs.length===0?<tr><td colSpan={7}><div className="text-muted text-sm" style={{textAlign:"center",padding:32}}>No subscriptions</div></td></tr>
+          :subs.sort((a,b)=>b.start_date>a.start_date?1:-1).map(s=>{const diff=daysDiff(s.end_date);return(<tr key={s.id}><td style={{fontWeight:600}}>{s.student_name}</td><td>{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:"—"}</td><td className="text-sm text-muted">{formatDate(s.start_date)}</td><td className="text-sm">{formatDate(s.end_date)}</td><td className="text-accent font-bold">{formatCurrency(s.amount)}</td><td>{s.status!=="active"?<span className="badge badge-gray">{s.status}</span>:diff<0?<span className="badge badge-red">Expired</span>:<span className="badge badge-green">Active</span>}</td></tr>);})}
+      </tbody></table></div></div>}
+      {tab==="expenses"&&<div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>Title</th><th>Category</th><th>Date</th><th>Amount</th></tr></thead><tbody>
+        {expenses.length===0?<tr><td colSpan={4}><div className="text-muted text-sm" style={{textAlign:"center",padding:32}}>No expenses</div></td></tr>
+          :expenses.sort((a,b)=>b.date>a.date?1:-1).map(e=><tr key={e.id}><td style={{fontWeight:600}}>{e.title}</td><td><span className="badge badge-gray" style={{textTransform:"capitalize",fontSize:11}}>{e.category}</span></td><td className="text-sm text-muted">{formatDate(e.date)}</td><td className="text-red font-bold">{formatCurrency(e.amount)}</td></tr>)}
+      </tbody></table></div></div>}
+    </div>
+  );
+}
+
+// ─── ROOT APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [library, setLibrary]     = useState(null);
+  const [checking, setChecking]   = useState(true);
+  const [page, setPage]           = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [subPrefill, setSubPrefill]   = useState(null);
+
+  const { data, setData, reload, loading } = useLibraryData(!!library);
+
+  // Restore session on mount
+  useEffect(() => {
+    const token = getToken();
+    if (!token) { setChecking(false); return; }
+    api.auth.me()
+      .then(lib => setLibrary(lib))
+      .catch(() => clearToken())
+      .finally(() => setChecking(false));
+  }, []);
+
+  const handleAuth    = (lib) => { setLibrary(lib); };
+  const handleLogout  = ()    => { clearToken(); setLibrary(null); setData({ shifts:[], plans:[], students:[], subscriptions:[], reminders:[], expenses:[], totalSeats:30 }); };
+  const handleUpdate  = (upd) => { if (upd.totalSeats) setLibrary(prev => ({ ...prev, total_seats: upd.totalSeats })); };
+  const handleCreateSub = (pf) => { setSubPrefill(pf); setPage("subscriptions"); };
+
+  const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
+
+  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"] };
+  const [t1,t2] = pageTitle[page] || ["",""];
+
+  if (checking) return (
+    <>
+      <style>{styles}</style>
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
+        <Spinner size={40}/>
+      </div>
+    </>
+  );
+
+  if (!library) return (<><style>{styles}</style><AuthPage onAuth={handleAuth}/></>);
+
+  return (
+    <>
+      <style>{styles}</style>
+      <div className="app">
+        <Sidebar library={library} active={page} onNav={setPage} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders}/>
+        <main className="main">
+          <div className="topbar">
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <button className="btn btn-ghost btn-icon mobile-toggle" onClick={()=>setSidebarOpen(!sidebarOpen)}><Icon name="menu" size={20}/></button>
+              <div>
+                <div style={{fontSize:11.5,color:"var(--text3)",fontWeight:500,textTransform:"uppercase",letterSpacing:1}}>{library.library_name}</div>
+                <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:19,lineHeight:1.2}}>{t1} <span style={{color:"var(--accent)"}}>{t2}</span></h1>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              {urgentReminders>0&&<button className="btn btn-ghost btn-icon" onClick={()=>setPage("reminders")} style={{position:"relative"}}><Icon name="bell" size={19} color="var(--accent)"/><span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"var(--red)",border:"2px solid var(--surface)"}}/></button>}
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 11px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
+                <div className="lib-avatar" style={{width:26,height:26,fontSize:11}}>{library.library_name?.[0]}</div>
+                <span style={{fontSize:12.5,fontWeight:600}}>{library.owner_name}</span>
+              </div>
+            </div>
+          </div>
+          <div className="content">
+            {loading && page === "dashboard" && <div style={{position:"absolute",top:16,right:32}}><Spinner size={18}/></div>}
+            {page==="dashboard"&&<Dashboard data={data} library={library} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
+            {page==="students"&&<Students data={data} reload={reload}/>}
+            {page==="plans"&&<Plans data={data} reload={reload}/>}
+            {page==="shifts"&&<Shifts data={data} reload={reload}/>}
+            {page==="subscriptions"&&<Subscriptions data={data} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
+            {page==="seats"&&<SeatsPage data={data} library={library} reload={reload} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
+            {page==="reminders"&&<Reminders data={data} reload={reload}/>}
+            {page==="expenses"&&<Expenses data={data} reload={reload}/>}
+            {page==="reports"&&<Reports data={data}/>}
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
