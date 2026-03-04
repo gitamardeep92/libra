@@ -668,70 +668,249 @@ function Plans({ data, reload }) {
   );
 }
 
-function Subscriptions({ data, reload, prefill, onClearPrefill }) {
+function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   const [showModal, setShowModal] = useState(!!prefill);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [form, setForm] = useState({studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:""});
-  const [saving, setSaving] = useState(false);
-  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const [editSub, setEditSub]     = useState(null); // subscription being edited
+  const [search, setSearch]       = useState("");
+  const [filter, setFilter]       = useState("all");
+  const emptyForm = {studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:""};
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState("");
+  const set=(k,v)=>{ setForm(p=>({...p,[k]:v})); setError(""); };
 
   useEffect(()=>{if(prefill){setForm(p=>({...p,seatNumber:String(prefill.seatNumber||""),shiftId:prefill.shiftId||""}));setShowModal(true);}}, [prefill]);
 
-  const selectedPlan=(data.plans||[]).find(p=>p.id===form.planId);
-  const effectiveAmount=selectedPlan?Math.max(0,Number(selectedPlan.price)-Number(form.discount||0)):0;
-  const endDate=selectedPlan?addDays(form.startDate,selectedPlan.duration):"";
+  const selectedPlan   = (data.plans||[]).find(p=>p.id===form.planId);
+  const effectiveAmount = selectedPlan ? Math.max(0,Number(selectedPlan.price)-Number(form.discount||0)) : 0;
+  const endDate         = selectedPlan ? addDays(form.startDate, selectedPlan.duration) : "";
 
-  const save=async()=>{
-    if(!form.studentId||!form.planId)return;
-    setSaving(true);
-    const selectedShift=(data.shifts||[]).find(s=>s.id===form.shiftId);
-    try{
-      await api.subscriptions.create({studentId:form.studentId,planId:form.planId,planName:selectedPlan.name,shiftId:form.shiftId||null,shiftName:selectedShift?.name||"",seatNumber:form.seatNumber?Number(form.seatNumber):null,amount:effectiveAmount,discount:Number(form.discount||0),paymentMode:form.paymentMode,startDate:form.startDate,endDate,notes:form.notes});
-      await reload(["subscriptions","reminders"]);
-      setShowModal(false);setForm({studentId:"",planId:"",startDate:today(),seatNumber:"",shiftId:"",paymentMode:"cash",discount:0,notes:""});
-      if(onClearPrefill)onClearPrefill();
-    }finally{setSaving(false);}
-  };
-
-  const cancel=async(id)=>{await api.subscriptions.cancel(id);await reload(["subscriptions"]);};
-  const renew=(sub)=>{setForm({studentId:sub.student_id,planId:sub.plan_id||"",startDate:today(),seatNumber:String(sub.seat_number||""),shiftId:sub.shift_id||"",paymentMode:"cash",discount:0,notes:"Renewal"});setShowModal(true);};
-
-  const occupiedSeatShifts=(data.subscriptions||[]).filter(s=>s.status==="active"&&s.seat_number&&daysDiff(s.end_date)>=0);
-  const isTaken=(seatNum,shiftId)=>{
-    if(!seatNum) return false;
-    const seatStatus = getSeatStatus(Number(seatNum), data.subscriptions, data.shifts, null);
-    if(seatStatus==="occupied") return true;
-    // Also block if the specific shift's time is already covered
-    const covered = getCoveredMins(Number(seatNum), data.subscriptions, data.shifts);
+  // ── Time-overlap check for a seat ──────────────────────────────────────────
+  // Returns true if the given shiftId's time overlaps ANY active sub on seatNum
+  // (excluding the subscription being edited)
+  const hasTimeOverlap = (seatNum, shiftId, excludeSubId=null) => {
+    if (!seatNum || !shiftId) return false;
     const sh = (data.shifts||[]).find(s=>s.id===shiftId);
-    if(!sh) return false;
-    const shStart = toMins(sh.start_time), shEnd = toMins(sh.end_time);
-    let uncovered = false;
-    for(let m=shStart; m<shEnd; m++) { if(!covered.has(m)) { uncovered=true; break; } }
-    return !uncovered;
+    if (!sh) return false;
+    const newStart = toMins(sh.start_time), newEnd = toMins(sh.end_time);
+    const activeSubs = (data.subscriptions||[]).filter(s=>
+      s.status==="active" &&
+      Number(s.seat_number)===Number(seatNum) &&
+      daysDiff(s.end_date)>=0 &&
+      s.id !== excludeSubId
+    );
+    return activeSubs.some(sub => {
+      const existSh = (data.shifts||[]).find(s=>s.id===sub.shift_id);
+      if (!existSh) return false;
+      const exStart = toMins(existSh.start_time), exEnd = toMins(existSh.end_time);
+      // Overlap if not (newEnd <= exStart || newStart >= exEnd)
+      return !(newEnd <= exStart || newStart >= exEnd);
+    });
   };
 
-  const subs=(data.subscriptions||[]).filter(s=>{const q=search.toLowerCase();const match=s.student_name?.toLowerCase().includes(q)||s.plan_name?.toLowerCase().includes(q);const f=filter==="all"||(filter==="active"&&s.status==="active"&&daysDiff(s.end_date)>=0)||(filter==="expiring"&&s.status==="active"&&daysDiff(s.end_date)>=0&&daysDiff(s.end_date)<=7)||(filter==="expired"&&(s.status!=="active"||daysDiff(s.end_date)<0));return match&&f;}).sort((a,b)=>b.created_at>a.created_at?1:-1);
+  // ── Duplicate active subscription check for student ───────────────────────
+  const getActiveSubForStudent = (studentId, excludeSubId=null) =>
+    (data.subscriptions||[]).find(s=>
+      s.student_id===studentId &&
+      s.status==="active" &&
+      daysDiff(s.end_date)>=0 &&
+      s.id!==excludeSubId
+    );
 
-  const totalSeats=30;
+  // ── Save (create or update) ───────────────────────────────────────────────
+  const save = async () => {
+    if (!form.studentId || !form.planId) { setError("Please select a student and plan."); return; }
+    // Block duplicate active subscription
+    if (!editSub && getActiveSubForStudent(form.studentId)) {
+      setError("This student already has an active subscription. Cancel it first or use Edit.");
+      return;
+    }
+    // Block seat time overlap
+    if (form.seatNumber && form.shiftId) {
+      const excludeId = editSub?.id || null;
+      if (hasTimeOverlap(form.seatNumber, form.shiftId, excludeId)) {
+        setError("This shift overlaps with an existing subscription on that seat. Choose a different shift or seat.");
+        return;
+      }
+    }
+    setSaving(true);
+    const selectedShift = (data.shifts||[]).find(s=>s.id===form.shiftId);
+    try {
+      if (editSub) {
+        await api.subscriptions.update(editSub.id, {
+          planId:form.planId, planName:selectedPlan.name,
+          shiftId:form.shiftId||null, shiftName:selectedShift?.name||"",
+          seatNumber:form.seatNumber?Number(form.seatNumber):null,
+          amount:effectiveAmount, discount:Number(form.discount||0),
+          paymentMode:form.paymentMode, startDate:form.startDate, endDate, notes:form.notes,
+        });
+      } else {
+        await api.subscriptions.create({
+          studentId:form.studentId, planId:form.planId, planName:selectedPlan.name,
+          shiftId:form.shiftId||null, shiftName:selectedShift?.name||"",
+          seatNumber:form.seatNumber?Number(form.seatNumber):null,
+          amount:effectiveAmount, discount:Number(form.discount||0),
+          paymentMode:form.paymentMode, startDate:form.startDate, endDate, notes:form.notes,
+        });
+      }
+      await reload(["subscriptions","reminders"]);
+      closeModal();
+    } catch(e) {
+      setError(e.message || "Failed to save.");
+    } finally { setSaving(false); }
+  };
+
+  const closeModal = () => {
+    setShowModal(false); setEditSub(null); setForm(emptyForm); setError("");
+    if(onClearPrefill) onClearPrefill();
+  };
+
+  const openEdit = (sub) => {
+    setEditSub(sub);
+    setForm({
+      studentId: sub.student_id,
+      planId:    sub.plan_id||"",
+      startDate: sub.start_date?.slice(0,10)||today(),
+      seatNumber:String(sub.seat_number||""),
+      shiftId:   sub.shift_id||"",
+      paymentMode:sub.payment_mode||"cash",
+      discount:  sub.discount||0,
+      notes:     sub.notes||"",
+    });
+    setError("");
+    setShowModal(true);
+  };
+
+  const cancel = async(id) => { await api.subscriptions.cancel(id); await reload(["subscriptions"]); };
+
+  // ── Shift dropdown: disable shifts that overlap with existing seat bookings ─
+  const shiftOption = (sh) => {
+    if (!form.seatNumber) return { disabled: false, reason: "" };
+    const overlap = hasTimeOverlap(form.seatNumber, sh.id, editSub?.id||null);
+    return { disabled: overlap, reason: overlap ? " — Overlaps existing booking" : "" };
+  };
+
+  // ── Seat dropdown: disable fully occupied seats ────────────────────────────
+  const seatStatus = (n) => getSeatStatus(n, data.subscriptions, data.shifts, library);
+  const totalSeats  = library?.total_seats || 30;
+
+  const subs = (data.subscriptions||[]).filter(s=>{
+    const q=search.toLowerCase();
+    const match=s.student_name?.toLowerCase().includes(q)||s.plan_name?.toLowerCase().includes(q);
+    const f=filter==="all"
+      ||(filter==="active"  && s.status==="active"  && daysDiff(s.end_date)>=0)
+      ||(filter==="expiring"&& s.status==="active"  && daysDiff(s.end_date)>=0 && daysDiff(s.end_date)<=7)
+      ||(filter==="expired" && (s.status!=="active" || daysDiff(s.end_date)<0));
+    return match&&f;
+  }).sort((a,b)=>b.created_at>a.created_at?1:-1);
+
+  // Warn if selected student already has active sub (new sub only)
+  const existingActiveSub = form.studentId && !editSub ? getActiveSubForStudent(form.studentId) : null;
 
   return(
     <div>
-      <div className="page-header"><div className="page-header-left"><h1>Subscriptions</h1><p>{(data.subscriptions||[]).filter(s=>s.status==="active"&&daysDiff(s.end_date)>=0).length} active</p></div><div className="flex items-center gap-2"><div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div><button className="btn btn-primary" onClick={()=>{setForm({studentId:"",planId:"",startDate:today(),seatNumber:"",shiftId:"",paymentMode:"cash",discount:0,notes:""});setShowModal(true);}}><Icon name="plus" size={15}/>New</button></div></div>
+      <div className="page-header">
+        <div className="page-header-left"><h1>Subscriptions</h1><p>{(data.subscriptions||[]).filter(s=>s.status==="active"&&daysDiff(s.end_date)>=0).length} active</p></div>
+        <div className="flex items-center gap-2">
+          <div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <button className="btn btn-primary" onClick={()=>{setEditSub(null);setForm(emptyForm);setError("");setShowModal(true);}}><Icon name="plus" size={15}/>New</button>
+        </div>
+      </div>
       <div className="pill-tabs">{[["all","All"],["active","Active"],["expiring","Expiring"],["expired","Expired"]].map(([v,l])=><div key={v} className={`pill${filter===v?" active":""}`} onClick={()=>setFilter(v)}>{l}</div>)}</div>
       <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>Student</th><th>Plan</th><th>Shift</th><th>Seat</th><th>Amount</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>
-        {subs.length===0?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="id" size={24} color="var(--text3)"/></div><div className="empty-title">No subscriptions</div></div></td></tr>
-          :subs.map(s=>{const diff=daysDiff(s.end_date);const exp=s.status!=="active"||diff<0;return(<tr key={s.id}><td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td><td className="text-sm">{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td><td>{s.seat_number?<span className="badge badge-blue">#{s.seat_number}</span>:<span className="text-muted text-xs">—</span>}</td><td className="text-accent font-bold">{formatCurrency(s.amount)}</td><td className="text-sm">{formatDate(s.end_date)}</td><td>{exp?<span className="badge badge-red">Expired</span>:diff<=3?<span className="badge badge-red">Exp {diff}d</span>:diff<=7?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td><td><div className="flex gap-2"><button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(s.student_phone,`Hi ${s.student_name}, your library subscription (${s.plan_name}) ${diff<0?'has expired':'will expire on '+formatDate(s.end_date)}. Please renew to continue your access. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={14} color="#25D366"/></button><button className="btn btn-secondary btn-sm" onClick={()=>renew(s)}>Renew</button>{!exp&&<button className="btn btn-danger btn-sm" onClick={()=>cancel(s.id)}>Cancel</button>}</div></td></tr>);
+        {subs.length===0
+          ?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="id" size={24} color="var(--text3)"/></div><div className="empty-title">No subscriptions</div></div></td></tr>
+          :subs.map(s=>{
+            const diff=daysDiff(s.end_date);const exp=s.status!=="active"||diff<0;
+            return(<tr key={s.id}>
+              <td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td>
+              <td className="text-sm">{s.plan_name}</td>
+              <td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td>
+              <td>{s.seat_number?<span className="badge badge-blue">#{s.seat_number}</span>:<span className="text-muted text-xs">—</span>}</td>
+              <td className="text-accent font-bold">{formatCurrency(s.amount)}</td>
+              <td className="text-sm">{formatDate(s.end_date)}</td>
+              <td>{exp?<span className="badge badge-red">Expired</span>:diff<=3?<span className="badge badge-red">Exp {diff}d</span>:diff<=7?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td>
+              <td><div className="flex gap-2">
+                <button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(s.student_phone,`Hi ${s.student_name}, your library subscription (${s.plan_name}) ${diff<0?"has expired":"will expire on "+formatDate(s.end_date)}. Please renew to continue your access. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={14} color="#25D366"/></button>
+                {!exp&&<button className="btn btn-secondary btn-sm" onClick={()=>openEdit(s)}><Icon name="edit" size={13}/>Edit</button>}
+                <button className="btn btn-secondary btn-sm" onClick={()=>{setEditSub(null);setForm({...emptyForm,studentId:s.student_id,planId:s.plan_id||"",seatNumber:String(s.seat_number||""),shiftId:s.shift_id||"",startDate:today(),notes:"Renewal"});setShowModal(true);}}>Renew</button>
+                {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>cancel(s.id)}>Cancel</button>}
+              </div></td>
+            </tr>);
           })}
       </tbody></table></div></div>
-      {showModal&&<div className="modal-overlay"><div className="modal modal-lg"><div className="modal-header"><h2 className="modal-title">New Subscription{form.seatNumber?` — Seat #${form.seatNumber}`:""}</h2><button className="btn btn-ghost btn-icon" onClick={()=>{setShowModal(false);if(onClearPrefill)onClearPrefill();}}><Icon name="x" size={17}/></button></div><div className="modal-body">
-        <div className="form-row"><div className="form-group"><label className="label">Student *</label><select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}><option value="">Select student…</option>{(data.students||[]).filter(s=>s.status==="active").map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}</select></div><div className="form-group"><label className="label">Plan *</label><select className="input select" value={form.planId} onChange={e=>{set("planId",e.target.value);const pl=(data.plans||[]).find(p=>p.id===e.target.value);if(pl?.shift_id)set("shiftId",pl.shift_id);}}><option value="">Select plan…</option>{(data.plans||[]).map(p=><option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)} / {p.duration}d</option>)}</select></div></div>
-        {selectedPlan&&<div className="alert alert-success"><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>Duration: <strong>{selectedPlan.duration}d</strong> · End: <strong>{formatDate(endDate)}</strong> · Payable: <strong>{formatCurrency(effectiveAmount)}</strong></span></div>}
-        <div className="form-row"><div className="form-group"><label className="label">Shift</label><select className="input select" value={form.shiftId} onChange={e=>set("shiftId",e.target.value)}><option value="">No specific shift</option>{(data.shifts||[]).map(sh=>{const taken=form.seatNumber&&isTaken(form.seatNumber,sh.id);return<option key={sh.id} value={sh.id} disabled={taken}>{sh.name} ({sh.start_time}–{sh.end_time}){taken?" — Occupied":""}</option>;})}</select></div><div className="form-group"><label className="label">Seat</label><select className="input select" value={form.seatNumber} onChange={e=>set("seatNumber",e.target.value)}><option value="">No seat</option>{Array.from({length:totalSeats},(_,i)=>i+1).map(n=>{const s=getSeatStatus(n,data.subscriptions,data.shifts);return<option key={n} value={n} disabled={s==="occupied"&&String(n)!==form.seatNumber}>Seat #{n}{s==="half"?" (Half free)":s==="occupied"?" (Full)":""}</option>;})}</select></div></div>
-        <div className="form-row"><div className="form-group"><label className="label">Start Date</label><input className="input" type="date" value={form.startDate} onChange={e=>set("startDate",e.target.value)}/></div><div className="form-group"><label className="label">Discount (₹)</label><input className="input" type="number" placeholder="0" value={form.discount} onChange={e=>set("discount",e.target.value)}/></div></div>
-        <div className="form-row"><div className="form-group"><label className="label">Payment Mode</label><select className="input select" value={form.paymentMode} onChange={e=>set("paymentMode",e.target.value)}>{["cash","upi","card","netbanking","cheque"].map(m=><option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Notes</label><input className="input" placeholder="Optional…" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div></div>
-      </div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>{setShowModal(false);if(onClearPrefill)onClearPrefill();}}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Create Subscription</button></div></div></div>}
+
+      {showModal&&<div className="modal-overlay"><div className="modal modal-lg">
+        <div className="modal-header">
+          <h2 className="modal-title">{editSub?"Edit Subscription":"New Subscription"}{form.seatNumber?` — Seat #${form.seatNumber}`:""}</h2>
+          <button className="btn btn-ghost btn-icon" onClick={closeModal}><Icon name="x" size={17}/></button>
+        </div>
+        <div className="modal-body">
+          {/* Student — locked in edit mode */}
+          <div className="form-row">
+            <div className="form-group">
+              <label className="label">Student *</label>
+              {editSub
+                ?<div className="input" style={{background:"var(--surface3)",cursor:"not-allowed",color:"var(--text2)"}}>{(data.students||[]).find(s=>s.id===form.studentId)?.name||"—"}</div>
+                :<select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}>
+                  <option value="">Select student…</option>
+                  {(data.students||[]).filter(s=>s.status==="active").map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}
+                </select>
+              }
+            </div>
+            <div className="form-group">
+              <label className="label">Plan *</label>
+              <select className="input select" value={form.planId} onChange={e=>{set("planId",e.target.value);const pl=(data.plans||[]).find(p=>p.id===e.target.value);if(pl?.shift_id)set("shiftId",pl.shift_id);}}>
+                <option value="">Select plan…</option>
+                {(data.plans||[]).map(p=><option key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)} / {p.duration}d</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Duplicate active sub warning */}
+          {existingActiveSub&&<div className="alert alert-warning"><Icon name="warn" size={14} color="var(--accent)"/><span style={{fontSize:13}}>This student already has an active <strong>{existingActiveSub.plan_name}</strong> subscription expiring <strong>{formatDate(existingActiveSub.end_date)}</strong>. Cancel it first or use Edit.</span></div>}
+
+          {selectedPlan&&<div className="alert alert-success"><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>Duration: <strong>{selectedPlan.duration}d</strong> · End: <strong>{formatDate(endDate)}</strong> · Payable: <strong>{formatCurrency(effectiveAmount)}</strong></span></div>}
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="label">Shift</label>
+              <select className="input select" value={form.shiftId} onChange={e=>set("shiftId",e.target.value)}>
+                <option value="">No specific shift</option>
+                {(data.shifts||[]).map(sh=>{const {disabled,reason}=shiftOption(sh);return<option key={sh.id} value={sh.id} disabled={disabled}>{sh.name} ({sh.start_time}–{sh.end_time}){reason}</option>;})}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">Seat</label>
+              <select className="input select" value={form.seatNumber} onChange={e=>set("seatNumber",e.target.value)}>
+                <option value="">No seat</option>
+                {Array.from({length:totalSeats},(_,i)=>i+1).map(n=>{
+                  const st=seatStatus(n);
+                  // In edit mode allow current seat; otherwise block occupied
+                  const isCurrentSeat = editSub && Number(editSub.seat_number)===n;
+                  const disabled = st==="occupied" && !isCurrentSeat;
+                  return<option key={n} value={n} disabled={disabled}>Seat #{n}{st==="half"?" (Half free)":st==="occupied"?" (Full)":""}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group"><label className="label">Start Date</label><input className="input" type="date" value={form.startDate} onChange={e=>set("startDate",e.target.value)}/></div>
+            <div className="form-group"><label className="label">Discount (₹)</label><input className="input" type="number" placeholder="0" value={form.discount} onChange={e=>set("discount",e.target.value)}/></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="label">Payment Mode</label><select className="input select" value={form.paymentMode} onChange={e=>set("paymentMode",e.target.value)}>{["cash","upi","card","netbanking","cheque"].map(m=><option key={m} value={m}>{m.charAt(0).toUpperCase()+m.slice(1)}</option>)}</select></div>
+            <div className="form-group"><label className="label">Notes</label><input className="input" placeholder="Optional…" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div>
+          </div>
+
+          {error&&<div className="alert alert-warning" style={{marginTop:8}}><Icon name="warn" size={14} color="var(--accent)"/><span style={{fontSize:13,color:"var(--red)"}}>{error}</span></div>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving||!!existingActiveSub}>{saving?<Spinner size={15}/>:null}{editSub?"Save Changes":"Create Subscription"}</button>
+        </div>
+      </div></div>}
     </div>
   );
 }
@@ -929,7 +1108,7 @@ export default function App() {
             {page==="students"&&<Students data={data} reload={reload}/>}
             {page==="plans"&&<Plans data={data} reload={reload}/>}
             {page==="shifts"&&<Shifts data={data} reload={reload}/>}
-            {page==="subscriptions"&&<Subscriptions data={data} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
+            {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
             {page==="seats"&&<SeatsPage data={data} library={library} reload={reload} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
             {page==="reminders"&&<Reminders data={data} reload={reload}/>}
             {page==="expenses"&&<Expenses data={data} reload={reload}/>}

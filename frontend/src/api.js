@@ -58,9 +58,10 @@ export const api = {
 
   // ─── Subscriptions ────────────────────────────────────────────────────────
   subscriptions: {
-    list:   ()    => request('/api/subscriptions'),
-    create: (b)   => request('/api/subscriptions',           { method: 'POST',  body: JSON.stringify(b) }),
-    cancel: (id)  => request(`/api/subscriptions/${id}/cancel`,{ method: 'PATCH' }),
+    list:   ()        => request('/api/subscriptions'),
+    create: (b)       => request('/api/subscriptions',              { method: 'POST',  body: JSON.stringify(b) }),
+    update: (id, b)   => request(`/api/subscriptions/${id}`,        { method: 'PUT',   body: JSON.stringify(b) }),
+    cancel: (id)      => request(`/api/subscriptions/${id}/cancel`, { method: 'PATCH' }),
   },
 
   // ─── Reminders ────────────────────────────────────────────────────────────

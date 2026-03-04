@@ -165,6 +165,31 @@ router.patch('/subscriptions/:id/cancel', async (req, res) => {
   res.json(r.rows[0]);
 });
 
+// ── PUT /subscriptions/:id — Edit an existing subscription ───────────────────
+router.put('/subscriptions/:id', async (req, res) => {
+  const { planId, planName, shiftId, shiftName, seatNumber, amount, discount,
+          paymentMode, startDate, endDate, notes } = req.body;
+  try {
+    const r = await pool.query(
+      `UPDATE subscriptions
+       SET plan_id=$1, plan_name=$2, shift_id=$3, shift_name=$4,
+           seat_number=$5, amount=$6, discount=$7, payment_mode=$8,
+           start_date=$9, end_date=$10, notes=$11
+       WHERE id=$12 AND library_id=$13
+       RETURNING *`,
+      [planId||null, planName, shiftId||null, shiftName||'',
+       seatNumber||null, amount, discount||0, paymentMode||'cash',
+       startDate, endDate, notes||'',
+       req.params.id, libId(req)]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Subscription not found' });
+    res.json(r.rows[0]);
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // REMINDERS
 // ═══════════════════════════════════════════════════════════════════════════════
