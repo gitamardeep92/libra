@@ -852,6 +852,8 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
     {id:"reports",icon:"chart",label:"Reports",section:"manage"},
     {id:"marketing",icon:"megaphone",label:"Marketing",section:"tools"},
     {id:"settings",icon:"settings",label:"Settings",section:"tools"},
+    {id:"billing",icon:"payment",label:"Billing & Plans",section:"tools"},
+    {id:"billing",icon:"key",label:"Billing",section:"tools"},
   ];
   return(
     <>
@@ -880,6 +882,218 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
+// ── TRIAL BANNER ─────────────────────────────────────────────────────────────
+function TrialBanner({ library, onOpenBilling }) {
+  const type = getTrialBannerType(library);
+  if (!type || type === 'info') return null;
+
+  const daysLeft = getTrialDaysLeft(library);
+  const WA_NUMBER = "919807139295"; // ← update with real number
+  const waMsg = `Hi LibraryDesk Team! I would like to activate my library account: ${library?.library_name}. Please help me with the plan options.`;
+  const waUrl = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(waMsg)}`;
+
+  const configs = {
+    urgent: {
+      bg: "linear-gradient(90deg,#2a1205,#3d1a06)", border:"var(--red)",
+      icon:"⚠️",
+      text: `Your free trial expires in ${daysLeft} day${daysLeft===1?"":"s"}!`,
+      sub:  "After expiry, your account will become read-only.",
+    },
+    expired: {
+      bg: "linear-gradient(90deg,#1a0505,#2a0808)", border:"var(--red)",
+      icon:"🔒",
+      text: "Your trial has ended — account is now read-only.",
+      sub:  "You can view your data but cannot add or edit anything.",
+    },
+    suspended: {
+      bg: "linear-gradient(90deg,#1a0505,#2a0808)", border:"var(--red)",
+      icon:"🚫",
+      text: "Your account has been suspended.",
+      sub:  "Please contact us to reactivate your account.",
+    },
+  };
+
+  const cfg = configs[type];
+  if (!cfg) return null;
+
+  return (
+    <div style={{
+      background: cfg.bg,
+      border: `1px solid ${cfg.border}`,
+      borderRadius: 10, padding: "12px 16px",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      flexWrap: "wrap", gap: 10, margin: "0 0 16px",
+      animation: type==="urgent" ? "pulse 2s infinite" : undefined,
+    }}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:18}}>{cfg.icon}</span>
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--red)"}}>{cfg.text}</div>
+          <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>{cfg.sub}</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,flexShrink:0}}>
+        <button className="btn btn-secondary btn-sm" onClick={onOpenBilling}>
+          View Plans
+        </button>
+        <a href={waUrl} target="_blank" rel="noreferrer"
+          style={{display:"inline-flex",alignItems:"center",gap:6,background:"#25D366",color:"#fff",fontWeight:700,fontSize:12,padding:"6px 14px",borderRadius:8,textDecoration:"none"}}>
+          💬 Activate on WhatsApp
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── BILLING PAGE ──────────────────────────────────────────────────────────────
+function Billing({ library }) {
+  const [billing, setBilling] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const WA_NUMBER = "919807139295"; // ← update with real number
+
+  useEffect(() => {
+    api.auth.billing().then(setBilling).catch(()=>{}).finally(()=>setLoading(false));
+  }, []);
+
+  const daysLeft  = getTrialDaysLeft(library);
+  const readonly  = isReadOnly(library);
+  const status    = library?.subscription_status;
+
+  const waMsg = (plan) => `Hi LibraryDesk Team! I would like to activate my library "${library?.library_name}" on the ${plan} plan. Please help me with the payment process.`;
+  const waUrl = (plan) => `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(waMsg(plan))}`;
+
+  return (
+    <div>
+      {/* Status Card */}
+      <div className="card" style={{marginBottom:16,borderColor:readonly?"var(--red)":status==="active"?"var(--green)":"var(--accent)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{
+              width:52,height:52,borderRadius:14,
+              background: status==="active"?"var(--green-dim)":readonly?"var(--red-dim)":"var(--accent-dim)",
+              border:`1px solid ${status==="active"?"var(--green)":readonly?"var(--red)":"var(--accent)"}`,
+              display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,
+            }}>
+              {status==="active"?"✅":readonly?"🔒":"⏳"}
+            </div>
+            <div>
+              <div style={{fontWeight:700,fontSize:16}}>
+                {status==="active" ? "Account Active" : readonly ? "Account Restricted" : "Free Trial"}
+              </div>
+              <div style={{fontSize:13,color:"var(--text3)",marginTop:3}}>
+                {status==="active" && billing?.subscription?.current_period_end &&
+                  `Active until ${formatDate(billing.subscription.current_period_end)}`}
+                {status==="trial" && daysLeft!==null && daysLeft>=0 &&
+                  `${daysLeft} day${daysLeft===1?"":"s"} remaining in your free trial`}
+                {status==="trial" && daysLeft!==null && daysLeft<0 &&
+                  "Your free trial has ended"}
+                {status==="expired" && "Your subscription has expired"}
+                {status==="suspended" && "Your account has been suspended — contact support"}
+              </div>
+            </div>
+          </div>
+          {status==="active" && (
+            <span className="badge badge-green" style={{fontSize:13,padding:"6px 14px"}}>
+              {billing?.subscription?.plan_name || "Active Plan"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Plans */}
+      <div className="section-title" style={{marginBottom:12}}>Choose a Plan</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14,marginBottom:24}}>
+        {/* Monthly */}
+        <div className="card" style={{borderColor:"var(--accent)",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,var(--accent),var(--accent2))"}}/> 
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <span className="badge badge-accent">Most Popular</span>
+            {status==="active" && billing?.subscription?.plan_name==="Monthly" &&
+              <span className="badge badge-green">Current</span>}
+          </div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Monthly Plan</div>
+          <div style={{fontSize:32,fontWeight:800,color:"var(--accent)",marginBottom:4}}>₹1,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/month</span></div>
+          <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Full access · Cancel anytime</div>
+          <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+            {["Unlimited students","All features","Seat map & shifts","WhatsApp reminders","Priority support"].map(f=>(
+              <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
+                <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
+              </li>
+            ))}
+          </ul>
+          <a href={waUrl("Monthly ₹1,000/month")} target="_blank" rel="noreferrer"
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
+            💬 Activate via WhatsApp
+          </a>
+        </div>
+
+        {/* Annual */}
+        <div className="card" style={{borderColor:"var(--gold)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <span className="badge badge-gold">Save ₹3,000</span>
+            {status==="active" && billing?.subscription?.plan_name==="Annual" &&
+              <span className="badge badge-green">Current</span>}
+          </div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Annual Plan</div>
+          <div style={{fontSize:32,fontWeight:800,color:"var(--gold)",marginBottom:4}}>₹9,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/year</span></div>
+          <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Best value · ₹750/month effective</div>
+          <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+            {["Everything in Monthly","Save ₹3,000/year","Dedicated support","Setup assistance","Invoice & GST receipt"].map(f=>(
+              <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
+                <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
+              </li>
+            ))}
+          </ul>
+          <a href={waUrl("Annual ₹9,000/year")} target="_blank" rel="noreferrer"
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
+            💬 Activate via WhatsApp
+          </a>
+        </div>
+      </div>
+
+      {/* Payment History */}
+      {loading ? <Spinner size={20}/> : billing?.payments?.length > 0 && (
+        <div className="card">
+          <div className="section-title" style={{marginBottom:12}}>Payment History</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr>{["Plan","Amount","Method","Invoice","Date"].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:.5,borderBottom:"1px solid var(--border)",background:"var(--surface2)"}}>{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {billing.payments.map(p=>(
+                  <tr key={p.id}>
+                    <td style={{padding:"10px 12px",fontSize:13,fontWeight:600}}>{p.plan_name||"—"}</td>
+                    <td style={{padding:"10px 12px",fontSize:13,color:"var(--green)",fontWeight:700}}>₹{Number(p.amount).toLocaleString("en-IN")}</td>
+                    <td style={{padding:"10px 12px"}}><span className="badge badge-gray" style={{textTransform:"capitalize",fontSize:11}}>{p.payment_method}</span></td>
+                    <td style={{padding:"10px 12px",fontSize:12,color:"var(--text3)"}}>{p.invoice_number||"—"}</td>
+                    <td style={{padding:"10px 12px",fontSize:12,color:"var(--text3)"}}>{formatDate(p.paid_at||p.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Contact info */}
+      <div style={{marginTop:16,padding:"14px 16px",background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:10,display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontSize:20}}>💬</span>
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--accent2)"}}>Need help? Contact us on WhatsApp</div>
+          <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>We'll activate your account within minutes of payment confirmation.</div>
+        </div>
+        <a href={`https://wa.me/${WA_NUMBER}`} target="_blank" rel="noreferrer"
+          style={{marginLeft:"auto",flexShrink:0,background:"#25D366",color:"#fff",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8,textDecoration:"none"}}>
+          Chat Now
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
   const [summary, setSummary] = useState(null);
   const [showAmounts, setShowAmounts] = useState(false);
@@ -964,7 +1178,7 @@ function Shifts({ data, reload }) {
   );
 }
 
-function Students({ data, reload }) {
+function Students({ data, reload, readonly=false }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -983,8 +1197,8 @@ function Students({ data, reload }) {
 
   return(
     <div>
-      {confirmDel&&<ConfirmDialog title="Delete Student?" message="This will permanently remove the student." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
-      <div className="page-header"><div className="page-header-left"><h1>Students</h1><p>{data.students?.length||0} registered</p></div><div className="flex items-center gap-2"><div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add</button></div></div>
+      {confirmDel&&reload&&<ConfirmDialog title="Delete Student?" message="This will permanently remove the student." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
+      <div className="page-header"><div className="page-header-left"><h1>Students</h1><p>{data.students?.length||0} registered</p></div><div className="flex items-center gap-2"><div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div>{reload&&<button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add</button>}</div></div>
       <div className="pill-tabs">{["all","active","inactive"].map(f=><div key={f} className={`pill${filter===f?" active":""}`} onClick={()=>setFilter(f)} style={{textTransform:"capitalize"}}>{f}</div>)}</div>
       <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Joined</th><th>Subscription</th><th>Status</th><th></th></tr></thead><tbody>
         {students.length===0?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="users" size={24} color="var(--text3)"/></div><div className="empty-title">No students</div></div></td></tr>
@@ -999,7 +1213,7 @@ function Students({ data, reload }) {
   );
 }
 
-function Plans({ data, reload }) {
+function Plans({ data, reload, readonly=false }) {
   const [showModal, setShowModal] = useState(false);
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState({name:"",duration:30,price:"",shiftId:"",description:""});
@@ -1014,7 +1228,7 @@ function Plans({ data, reload }) {
   return(
     <div>
       {confirmDel&&<ConfirmDialog title="Delete Plan?" message="Existing subscriptions won't be affected." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
-      <div className="page-header"><div className="page-header-left"><h1>Plans & Pricing</h1></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>New Plan</button></div>
+      <div className="page-header"><div className="page-header-left"><h1>Plans & Pricing</h1></div>{!readonly&&<button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>New Plan</button>}</div>
       {data.shifts.length===0&&<div className="alert alert-warning"><Icon name="warn" size={15} color="var(--accent)"/><span style={{fontSize:13}}>No shifts defined yet. Go to Shifts first.</span></div>}
       {data.plans.length===0?<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="tag" size={24} color="var(--text3)"/></div><div className="empty-title">No plans yet</div></div></div>
         :<div className="plans-grid">{data.plans.map(plan=>{const shift=(data.shifts||[]).find(s=>s.id===plan.shift_id);const used=(data.subscriptions||[]).filter(s=>s.plan_id===plan.id&&s.status==="active").length;return(<div key={plan.id} className="plan-card"><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{shift&&<span className="badge badge-purple" style={{fontSize:11}}>{shift.name}</span>}<span className="badge badge-gray">{plan.duration}d</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,marginTop:12}}>{plan.name}</div><div style={{fontSize:26,fontWeight:700,color:"var(--accent)",margin:"10px 0 4px"}}>{formatCurrency(plan.price)}<span style={{fontSize:12,fontWeight:400,color:"var(--text3)"}}>/period</span></div>{plan.description&&<div className="text-sm text-muted" style={{marginBottom:8}}>{plan.description}</div>}<div className="text-sm text-muted"><strong style={{color:"var(--text)"}}>{used}</strong> active subscribers</div><div style={{display:"flex",gap:8,marginTop:14}}><button className="btn btn-secondary btn-sm" onClick={()=>open(plan)}><Icon name="edit" size={13}/>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setConfirmDel(plan.id)}><Icon name="trash" size={13}/></button></div></div>);})}</div>}
@@ -1283,7 +1497,7 @@ function SeatsPage({ data, library, reload, onUpdate, onCreateSubscription }) {
   );
 }
 
-function Reminders({ data, reload }) {
+function Reminders({ data, reload, readonly=false }) {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({studentId:"",message:"",dueDate:today(),type:"payment"});
   const [saving, setSaving] = useState(false);
@@ -1309,7 +1523,7 @@ function Reminders({ data, reload }) {
   );
 }
 
-function Expenses({ data, reload }) {
+function Expenses({ data, reload, readonly=false }) {
   const [showModal, setShowModal] = useState(false);
   const [filter, setFilter] = useState("all");
   const [form, setForm] = useState({title:"",amount:"",category:"utilities",date:today(),description:"",paymentMode:"cash"});
@@ -1329,7 +1543,7 @@ function Expenses({ data, reload }) {
   return(
     <div>
       {confirmDel&&<ConfirmDialog title="Delete Expense?" message="This record will be permanently deleted." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
-      <div className="page-header"><div className="page-header-left"><h1>Expenses</h1></div><button className="btn btn-primary" onClick={()=>setShowModal(true)}><Icon name="plus" size={15}/>Add Expense</button></div>
+      <div className="page-header"><div className="page-header-left"><h1>Expenses</h1></div>{!readonly&&<button className="btn btn-primary" onClick={()=>setShowModal(true)}><Icon name="plus" size={15}/>Add Expense</button>}</div>
       <div className="stats-grid" style={{gridTemplateColumns:"repeat(3,1fr)",marginBottom:20}}>
         <div className="stat-card red"><div className="stat-label">Total Shown</div><div className="stat-value">{formatCurrency(total)}</div></div>
         <div className="stat-card gold"><div className="stat-label">This Month</div><div className="stat-value">{formatCurrency((data.expenses||[]).filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount),0))}</div></div>
@@ -1396,6 +1610,11 @@ export default function App() {
   const [library, setLibrary]     = useState(null);
   const [checking, setChecking]   = useState(true);
   const [page, setPage]           = useState("dashboard");
+  // ── Trial / billing state ──
+  const trialDays     = library?.trial_ends_at ? Math.ceil((new Date(library.trial_ends_at) - new Date()) / 86400000) : null;
+  const subStatus     = library?.subscription_status || "trial";
+  const isReadOnly    = subStatus === "expired" || subStatus === "suspended" || (subStatus === "trial" && trialDays !== null && trialDays < 0);
+  const showTrialWarn = subStatus === "trial" && trialDays !== null && trialDays >= 0 && trialDays <= 7;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [subPrefill, setSubPrefill]   = useState(null);
 
@@ -1428,7 +1647,7 @@ export default function App() {
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
 
-  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"] };
+  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"] };
   const [t1,t2] = pageTitle[page] || ["",""];
 
   if (checking) return (
@@ -1459,6 +1678,7 @@ export default function App() {
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               {urgentReminders>0&&<button className="btn btn-ghost btn-icon" onClick={()=>setPage("reminders")} style={{position:"relative"}}><Icon name="bell" size={19} color="var(--accent)"/><span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"var(--red)",border:"2px solid var(--surface)"}}/></button>}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 11px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
+                {(()=>{const t=getTrialBannerType(library);if(t==="urgent"||t==="expired"||t==="suspended")return<button onClick={()=>setPage("billing")} className="badge badge-red" style={{cursor:"pointer",border:"none",marginRight:4,fontSize:11}}>{t==="urgent"?`${getTrialDaysLeft(library)}d left`:"Upgrade"}</button>;return null;})()}
                 <div className="lib-avatar" style={{width:26,height:26,fontSize:11}}>{library.owner_name?.[0]?.toUpperCase()||"U"}</div>
                 <span style={{fontSize:12.5,fontWeight:600}}>{library.owner_name}</span>
               </div>
@@ -1466,17 +1686,28 @@ export default function App() {
           </div>
           <div className="content">
             {loading && page === "dashboard" && <div style={{position:"absolute",top:16,right:32}}><Spinner size={18}/></div>}
+            {page!=="billing" && <TrialBanner library={library} onOpenBilling={()=>setPage("billing")}/>}
+            {isReadOnly(library) && page!=="billing" && page!=="settings" && page!=="dashboard" && (
+              <div style={{background:"var(--red-dim)",border:"1px solid var(--red)",borderRadius:9,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,fontSize:13}}>
+                <span>🔒</span>
+                <span style={{color:"var(--red)",fontWeight:600}}>Read-only mode</span>
+                <span style={{color:"var(--text3)"}}>— You can view data but cannot make changes.</span>
+                <button className="btn btn-secondary btn-sm" style={{marginLeft:"auto"}} onClick={()=>setPage("billing")}>Upgrade →</button>
+              </div>
+            )}
             {page==="dashboard"&&<Dashboard data={data} library={library} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
-            {page==="students"&&<Students data={data} reload={reload}/>}
-            {page==="plans"&&<Plans data={data} reload={reload}/>}
+            {page==="students"&&<Students data={data} reload={isReadOnly?null:reload}/>}
+            {page==="plans"&&<Plans data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="shifts"&&<Shifts data={data} reload={reload}/>}
-            {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
+            {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={isReadOnly?null:reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
             {page==="seats"&&<SeatsPage data={data} library={library} reload={reload} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
-            {page==="reminders"&&<Reminders data={data} reload={reload}/>}
-            {page==="expenses"&&<Expenses data={data} reload={reload}/>}
+            {page==="reminders"&&<Reminders data={data} reload={reload} readonly={isReadOnly(library)}/>}
+            {page==="expenses"&&<Expenses data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="reports"&&<Reports data={data}/>}
             {page==="marketing"&&<Marketing data={data} library={library}/>}
             {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
+            {page==="billing"&&<Billing library={library}/>}
+            {page==="billing"&&<Billing library={library}/>}
           </div>
         </main>
       </div>

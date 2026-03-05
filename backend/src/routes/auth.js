@@ -24,9 +24,9 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 12);
     const result = await pool.query(
-      `INSERT INTO libraries (owner_name, email, password, library_name, city)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at`,
+      `INSERT INTO libraries (owner_name, email, password, library_name, city, subscription_status, trial_ends_at)
+       VALUES ($1, $2, $3, $4, $5, 'trial', NOW()+INTERVAL '14 days')
+       RETURNING id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active`,
       [ownerName, email.toLowerCase(), hash, libraryName, city || null]
     );
     const lib = result.rows[0];
@@ -36,6 +36,14 @@ router.post('/register', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
     // Send welcome email (non-blocking)
+    // Create trial saas subscription
+    await pool.query(
+      `INSERT INTO saas_subscriptions (library_id, plan_name, status, trial_ends_at, current_period_start, current_period_end)
+       VALUES ($1, 'Free Trial', 'trial', NOW()+INTERVAL '14 days', CURRENT_DATE, CURRENT_DATE+14)
+       ON CONFLICT DO NOTHING`,
+      [lib.id]
+    ).catch(() => {});
+
     sendWelcomeEmail({ toEmail: lib.email, ownerName: lib.owner_name, libraryName: lib.library_name })
       .catch(e => console.error('Welcome email error:', e));
 
@@ -52,7 +60,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
     const result = await pool.query(
-      `SELECT id, owner_name, email, password, library_name, city, total_seats, open_time, close_time, created_at
+      `SELECT id, owner_name, email, password, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active
        FROM libraries WHERE email = $1`,
       [email.toLowerCase()]
     );
@@ -78,7 +86,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at FROM libraries WHERE id = $1`,
+      `SELECT id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active FROM libraries WHERE id = $1`,
       [req.libraryId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Library not found' });
@@ -234,6 +242,46 @@ router.post('/reset-password', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+
+// ── GET /api/auth/billing ─────────────────────────────────────────────────────
+router.get('/billing', auth, async (req, res) => {
+  try {
+    const [lib, sub, payments] = await Promise.all([
+      pool.query(
+        `SELECT id, owner_name, email, library_name, subscription_status, trial_ends_at, is_active FROM libraries WHERE id=$1`,
+        [req.libraryId]
+      ),
+      pool.query(
+        `SELECT * FROM saas_subscriptions WHERE library_id=$1 ORDER BY created_at DESC LIMIT 1`,
+        [req.libraryId]
+      ),
+      pool.query(
+        `SELECT sp.amount, sp.status, sp.payment_method, sp.paid_at, i.invoice_number
+         SELECT sp.amount, sp.status, sp.payment_method, sp.paid_at, sp.notes,
+                i.invoice_number,
+                ss.plan_name
+         FROM saas_payments sp
+         LEFT JOIN invoices i ON i.payment_id=sp.id
+         LEFT JOIN saas_subscriptions ss ON ss.library_id=sp.library_id
+         WHERE sp.library_id=$1 AND sp.status='paid'
+         ORDER BY sp.paid_at DESC LIMIT 10`,
+        [req.libraryId]
+      ),
+    ]);
+    if (!lib.rows.length) return res.status(404).json({ error: 'Not found' });
+
+    const library  = lib.rows[0];
+    const saasPlans = await pool.query(`SELECT * FROM saas_plans WHERE is_active=TRUE ORDER BY price ASC`);
+
+    res.json({
+      library,
+      subscription: sub.rows[0] || null,
+      payments:     payments.rows,
+      plans:        saasPlans.rows,
+    });
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 module.exports = router;
