@@ -34,6 +34,7 @@ export const api = {
     changePassword:  (body)                 => request('/api/auth/password',       { method: 'PATCH', body: JSON.stringify(body) }),
     forgotPassword:  (body)                 => request('/api/auth/forgot-password', { method: 'POST',  body: JSON.stringify(body) }),
     resetPassword:   (body)                 => request('/api/auth/reset-password',  { method: 'POST',  body: JSON.stringify(body) }),
+    billing:         ()                     => request('/api/auth/billing'),
   },
 
   // ─── Shifts ──────────────────────────────────────────────────────────────
