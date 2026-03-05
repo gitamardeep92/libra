@@ -43,6 +43,10 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
     menu:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
     spin:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{animation:"spin 1s linear infinite"}}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
     calendar:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    send:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+    megaphone:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>,
+    settings:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+    key:<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
     whatsapp:<svg width={size} height={size} viewBox="0 0 24 24" fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>,
   };
   return icons[name] || null;
@@ -248,6 +252,21 @@ function useLibraryData(isLoggedIn) {
   return { data, setData, reload, loading };
 }
 
+// ─── AMOUNT CELL (hidden by default, reveal on click) ────────────────────────
+function AmountCell({ amount }) {
+  const [show, setShow] = useState(false);
+  return (
+    <td>
+      <button onClick={()=>setShow(s=>!s)}
+        style={{background:"none",border:"none",cursor:"pointer",padding:"2px 6px",borderRadius:6,
+                fontSize:13,fontWeight:700,color:show?"var(--accent)":"var(--text3)",
+                background:show?"var(--accent-dim)":"var(--surface3)",transition:"all 0.15s"}}>
+        {show ? formatCurrency(amount) : "₹ ••••"}
+      </button>
+    </td>
+  );
+}
+
 // ─── SEAT HELPERS (same logic as before, now uses data arrays not lib object) ─
 // ─── SEAT STATUS (operation-hours aware) ─────────────────────────────────────
 const toMins = (t) => { const [h,m] = (t||"00:00").split(":").map(Number); return h*60+(m||0); };
@@ -298,7 +317,12 @@ function getSeatStatus(seatNum, subscriptions, shifts, library) {
 }
 
 function getSeatOccupants(seatNum, subscriptions) {
-  return (subscriptions||[]).filter(s => s.status==="active" && Number(s.seat_number)===seatNum && daysDiff(s.end_date)>=0);
+  // Active subs + recently expired (within 10 days) for info display
+  return (subscriptions||[]).filter(s =>
+    Number(s.seat_number)===seatNum &&
+    s.status==="active" &&
+    daysDiff(s.end_date) >= -10
+  ).sort((a,b) => daysDiff(a.end_date) - daysDiff(b.end_date));
 }
 
 function getAvailableShiftsForSeat(seatNum, subscriptions, shifts, library) {
@@ -440,6 +464,274 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
   );
 }
 
+
+// ─── MARKETING PAGE ───────────────────────────────────────────────────────────
+function Marketing({ data, library }) {
+  const [selectedShifts, setSelectedShifts] = useState([]);
+  const [statusFilter, setStatusFilter]     = useState("active"); // active | expiring | all
+  const [msgTemplate, setMsgTemplate]       = useState("custom");
+  const [customMsg, setCustomMsg]           = useState("");
+  const [preview, setPreview]               = useState(null);
+
+  const templates = {
+    renewal:  (s) => `Hi ${s.name}, your library subscription expires on ${formatDate(s.end_date)}. Please renew to continue your access. Visit us soon! — ${library?.library_name}`,
+    payment:  (s) => `Hi ${s.name}, this is a reminder about your pending payment for ${library?.library_name}. Please clear dues at your earliest. Thank you!`,
+    announce: (s) => `Dear ${s.name}, we have an important announcement from ${library?.library_name}. ${customMsg}`,
+    custom:   (s) => customMsg.replace("{name}", s.name).replace("{library}", library?.library_name||""),
+  };
+
+  const toggleShift = (id) => setSelectedShifts(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]);
+
+  // Build recipient list based on filters
+  const recipients = (data.students||[]).filter(st => {
+    if (st.status !== "active") return false;
+    const activeSub = (data.subscriptions||[]).find(s =>
+      s.student_id===st.id && s.status==="active" && daysDiff(s.end_date)>=0
+    );
+    // Shift filter
+    if (selectedShifts.length > 0) {
+      if (!activeSub) return false;
+      if (!selectedShifts.includes(activeSub.shift_id)) return false;
+    }
+    // Status filter
+    if (statusFilter==="active"   && !activeSub) return false;
+    if (statusFilter==="expiring" && (!activeSub || daysDiff(activeSub.end_date)>7)) return false;
+    if (statusFilter==="inactive") return st.status==="active" && !activeSub;
+    return true;
+  }).map(st => {
+    const sub = (data.subscriptions||[]).find(s=>s.student_id===st.id&&s.status==="active"&&daysDiff(s.end_date)>=0);
+    return { ...st, end_date: sub?.end_date, plan_name: sub?.plan_name, shift_name: sub?.shift_name };
+  });
+
+  const getMessage = (st) => {
+    if (msgTemplate==="custom") return customMsg.replace(/\{name\}/g,st.name).replace(/\{library\}/g,library?.library_name||"");
+    return templates[msgTemplate](st);
+  };
+
+  const sendAll = () => {
+    recipients.forEach(st => {
+      if (st.phone) openWhatsApp(st.phone, getMessage(st));
+    });
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-header-left"><h1>Marketing</h1><p>Send WhatsApp messages to students</p></div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        {/* Filters */}
+        <div className="card">
+          <div className="section-title" style={{marginBottom:12}}><Icon name="users" size={13} color="var(--text3)"/>Filter Recipients</div>
+
+          <div className="form-group">
+            <label className="label">Subscription Status</label>
+            <div className="pill-tabs" style={{marginBottom:0}}>
+              {[["active","Active"],["expiring","Expiring (≤7d)"],["inactive","No Sub"],["all","All Students"]].map(([v,l])=>(
+                <div key={v} className={`pill${statusFilter===v?" active":""}`} onClick={()=>setStatusFilter(v)}>{l}</div>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group" style={{marginTop:12}}>
+            <label className="label">Filter by Shift (select multiple)</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
+              {(data.shifts||[]).map(sh=>(
+                <div key={sh.id}
+                  onClick={()=>toggleShift(sh.id)}
+                  style={{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${selectedShifts.includes(sh.id)?"var(--accent)":"var(--border)"}`,background:selectedShifts.includes(sh.id)?"var(--accent-dim)":"var(--surface2)",color:selectedShifts.includes(sh.id)?"var(--accent)":"var(--text2)",transition:"all 0.15s"}}>
+                  {sh.name} <span style={{opacity:0.7,fontSize:11}}>{sh.start_time}–{sh.end_time}</span>
+                </div>
+              ))}
+              {selectedShifts.length>0&&<div onClick={()=>setSelectedShifts([])} style={{padding:"6px 12px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid var(--border)",color:"var(--text3)"}}>Clear</div>}
+            </div>
+          </div>
+
+          <div style={{marginTop:14,padding:"10px 14px",background:"var(--accent-dim)",borderRadius:8,border:"1px solid var(--accent)"}}>
+            <span style={{fontSize:13,color:"var(--accent)",fontWeight:700}}>{recipients.length} students</span>
+            <span style={{fontSize:12,color:"var(--text3)",marginLeft:6}}>will receive this message</span>
+          </div>
+        </div>
+
+        {/* Message */}
+        <div className="card">
+          <div className="section-title" style={{marginBottom:12}}><Icon name="whatsapp" size={13} color="#25D366"/>Message</div>
+
+          <div className="form-group">
+            <label className="label">Template</label>
+            <select className="input select" value={msgTemplate} onChange={e=>setMsgTemplate(e.target.value)}>
+              <option value="custom">Custom message</option>
+              <option value="renewal">Subscription renewal reminder</option>
+              <option value="payment">Payment due reminder</option>
+              <option value="announce">General announcement</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="label">{msgTemplate==="custom"?"Message (use {name} and {library} as placeholders)":"Additional text (appended to template)"}</label>
+            <textarea className="input textarea" rows={4}
+              placeholder={msgTemplate==="custom"?"Hi {name}, hope you are enjoying {library}...":"Any extra info to add..."}
+              value={customMsg} onChange={e=>setCustomMsg(e.target.value)}
+              style={{minHeight:90}}/>
+          </div>
+
+          {recipients.length>0&&customMsg&&(
+            <div style={{marginTop:4}}>
+              <div className="text-xs text-muted" style={{marginBottom:4}}>Preview (first recipient):</div>
+              <div style={{background:"var(--surface3)",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"var(--text2)",lineHeight:1.6,fontStyle:"italic"}}>
+                "{getMessage(recipients[0])}"
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recipient list */}
+      {recipients.length>0&&(
+        <div className="card" style={{padding:0}}>
+          <div style={{padding:"14px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div className="section-title" style={{margin:0}}><Icon name="users" size={13} color="var(--text3)"/>Recipients ({recipients.length})</div>
+            <button className="btn btn-primary" onClick={sendAll} disabled={!customMsg&&msgTemplate==="custom"}
+              style={{gap:8}}>
+              <Icon name="whatsapp" size={15} color="white"/>Send to All ({recipients.length})
+            </button>
+          </div>
+          <div className="table-container">
+            <table className="table"><thead><tr><th>Student</th><th>Phone</th><th>Shift</th><th>Expires</th><th></th></tr></thead>
+            <tbody>
+              {recipients.map(st=>(
+                <tr key={st.id}>
+                  <td><div style={{fontWeight:600}}>{st.name}</div></td>
+                  <td className="text-sm">{st.phone}</td>
+                  <td>{st.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{st.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td>
+                  <td className="text-sm">{st.end_date?formatDate(st.end_date):<span className="text-muted">—</span>}</td>
+                  <td>
+                    <button className="btn btn-ghost btn-icon" title="Send individual WhatsApp"
+                      disabled={!customMsg&&msgTemplate==="custom"}
+                      onClick={()=>openWhatsApp(st.phone, getMessage(st))} style={{color:"#25D366"}}>
+                      <Icon name="whatsapp" size={14} color="#25D366"/>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody></table>
+          </div>
+        </div>
+      )}
+      {recipients.length===0&&(
+        <div className="card"><div className="empty-state">
+          <div className="empty-icon"><Icon name="megaphone" size={24} color="var(--text3)"/></div>
+          <div className="empty-title">No students match your filters</div>
+          <div className="empty-sub">Adjust the shift or status filters above</div>
+        </div></div>
+      )}
+    </div>
+  );
+}
+
+// ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
+function Settings({ library, onUpdate }) {
+  const [tab, setTab]           = useState("profile");
+  const [saving, setSaving]     = useState(false);
+  const [success, setSuccess]   = useState("");
+  const [error, setError]       = useState("");
+
+  // Profile form
+  const [profile, setProfile]   = useState({ ownerName: library?.owner_name||"", libraryName: library?.library_name||"", city: library?.city||"" });
+
+  // Password form
+  const [pw, setPw]             = useState({ current:"", newPw:"", confirm:"" });
+  const [showPw, setShowPw]     = useState({ current:false, newPw:false, confirm:false });
+
+  const flash = (msg, isErr=false) => {
+    if (isErr) { setError(msg); setSuccess(""); }
+    else { setSuccess(msg); setError(""); }
+    setTimeout(()=>{ setSuccess(""); setError(""); }, 3500);
+  };
+
+  const saveProfile = async () => {
+    if (!profile.ownerName||!profile.libraryName) { flash("Name fields are required", true); return; }
+    setSaving(true);
+    try {
+      const result = await api.auth.updateProfile(profile);
+      onUpdate({ owner_name: result.owner_name, library_name: result.library_name, city: result.city });
+      flash("Profile updated successfully!");
+    } catch(e) { flash(e.message||"Failed to update", true); }
+    finally { setSaving(false); }
+  };
+
+  const savePassword = async () => {
+    if (!pw.current||!pw.newPw) { flash("All password fields required", true); return; }
+    if (pw.newPw.length < 8)    { flash("New password must be at least 8 characters", true); return; }
+    if (pw.newPw !== pw.confirm) { flash("New passwords do not match", true); return; }
+    setSaving(true);
+    try {
+      await api.auth.changePassword({ currentPassword: pw.current, newPassword: pw.newPw });
+      setPw({ current:"", newPw:"", confirm:"" });
+      flash("Password changed successfully!");
+    } catch(e) { flash(e.message||"Failed to change password", true); }
+    finally { setSaving(false); }
+  };
+
+  const PwInput = ({ field, placeholder }) => (
+    <div style={{position:"relative"}}>
+      <input className="input" type={showPw[field]?"text":"password"} placeholder={placeholder}
+        value={pw[field]} onChange={e=>setPw(p=>({...p,[field]:e.target.value}))}
+        style={{paddingRight:42}}/>
+      <button className="btn btn-ghost btn-icon" onClick={()=>setShowPw(p=>({...p,[field]:!p[field]}))}
+        style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}>
+        <Icon name={showPw[field]?"eyeoff":"eye"} size={15} color="var(--text3)"/>
+      </button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="page-header"><div className="page-header-left"><h1>Settings</h1></div></div>
+      <div className="pill-tabs">
+        {[["profile","Profile"],["password","Password"]].map(([v,l])=>(
+          <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
+        ))}
+      </div>
+
+      {success&&<div className="alert alert-success" style={{marginBottom:16}}><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>{success}</span></div>}
+      {error  &&<div className="alert alert-warning" style={{marginBottom:16}}><Icon name="warn"  size={14} color="var(--red)"  /><span style={{fontSize:13,color:"var(--red)"}}>{error}</span></div>}
+
+      {tab==="profile"&&(
+        <div className="card" style={{maxWidth:520}}>
+          <div className="section-title" style={{marginBottom:16}}><Icon name="settings" size={13} color="var(--text3)"/>Library Profile</div>
+          <div className="form-group"><label className="label">Your Name</label>
+            <input className="input" value={profile.ownerName} onChange={e=>setProfile(p=>({...p,ownerName:e.target.value}))}/></div>
+          <div className="form-group"><label className="label">Library Name</label>
+            <input className="input" value={profile.libraryName} onChange={e=>setProfile(p=>({...p,libraryName:e.target.value}))}/></div>
+          <div className="form-group"><label className="label">City</label>
+            <input className="input" value={profile.city} onChange={e=>setProfile(p=>({...p,city:e.target.value}))}/></div>
+          <div style={{marginTop:8}}>
+            <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>
+              {saving?<Spinner size={15}/>:null}Save Profile
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab==="password"&&(
+        <div className="card" style={{maxWidth:520}}>
+          <div className="section-title" style={{marginBottom:16}}><Icon name="key" size={13} color="var(--text3)"/>Change Password</div>
+          <div className="form-group"><label className="label">Current Password</label><PwInput field="current" placeholder="Enter current password"/></div>
+          <div className="form-group"><label className="label">New Password</label><PwInput field="newPw" placeholder="Min 8 characters"/></div>
+          <div className="form-group"><label className="label">Confirm New Password</label><PwInput field="confirm" placeholder="Repeat new password"/></div>
+          <div style={{marginTop:8}}>
+            <button className="btn btn-primary" onClick={savePassword} disabled={saving}>
+              {saving?<Spinner size={15}/>:null}Change Password
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── AUTH PAGE ────────────────────────────────────────────────────────────────
 function AuthPage({ onAuth }) {
   const [mode, setMode] = useState("login");
@@ -452,6 +744,25 @@ function AuthPage({ onAuth }) {
   const submit = async () => {
     setError(""); setLoading(true);
     try {
+      if (mode === "forgot") {
+        const r = await api.auth.forgotPassword({ email: form.email });
+        if (r.code) {
+          // No email service — show code directly on screen
+          set("token", r.code);
+          setError(`⚠️ Email not configured. Your code: ${r.code}`);
+        } else {
+          setError("");
+        }
+        setMode("reset");
+        return;
+      }
+      if (mode === "reset") {
+        if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
+        await api.auth.resetPassword({ email: form.email, token: form.token, newPassword: form.password });
+        setMode("login");
+        setError("");
+        return;
+      }
       const result = mode === "register" ? await api.auth.register(form) : await api.auth.login(form);
       setToken(result.token);
       onAuth(result.library);
@@ -460,15 +771,47 @@ function AuthPage({ onAuth }) {
     } finally { setLoading(false); }
   };
 
+  const logoBlock = (
+    <div className="auth-logo">
+      <div className="auth-logo-icon" style={{background:"linear-gradient(135deg,var(--accent),#c87a1a)",borderRadius:14,width:52,height:52,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(232,168,56,0.35)"}}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="9" y1="7" x2="15" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="11" x2="15" y2="11" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+      </div>
+      <h1 className="auth-title" style={{letterSpacing:4,fontSize:28,fontWeight:800}}>LIBRA</h1>
+      <p className="auth-sub">Library Management System</p>
+    </div>
+  );
+
+  if (mode === "forgot") return (
+    <div className="auth-page"><div className="auth-bg"/><div className="auth-card">
+      {logoBlock}
+      <h2 style={{fontSize:18,fontWeight:700,marginBottom:6,textAlign:"center"}}>Reset Password</h2>
+      <p style={{fontSize:13,color:"var(--text3)",textAlign:"center",marginBottom:16}}>Enter your registered email. A 6-digit reset code will be sent to it.</p>
+      {error&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}>{error}</span></div>}
+      <div className="form-group"><label className="label">Email</label><input className="input" type="email" placeholder="email@library.com" value={form.email} onChange={e=>set("email",e.target.value)}/></div>
+      <button className="btn btn-primary w-full" style={{justifyContent:"center",marginTop:6}} onClick={submit} disabled={loading}>{loading?<Spinner size={16}/>:null}Send Reset Code</button>
+      <div className="auth-toggle"><a onClick={()=>{setMode("login");setError("");}}>Back to Sign In</a></div>
+    </div></div>
+  );
+
+  if (mode === "reset") return (
+    <div className="auth-page"><div className="auth-bg"/><div className="auth-card">
+      {logoBlock}
+      <h2 style={{fontSize:18,fontWeight:700,marginBottom:6,textAlign:"center"}}>Enter New Password</h2>
+      <p style={{fontSize:13,color:"var(--text3)",textAlign:"center",marginBottom:16}}>Check your email for the reset code (or see it above if shown).</p>
+      {error&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}>{error}</span></div>}
+      <div className="form-group"><label className="label">Reset Code (from email)</label><input className="input" placeholder="6-digit code" value={form.token||""} onChange={e=>set("token",e.target.value)}/></div>
+      <div className="form-group"><label className="label">New Password</label><input className="input" type="password" placeholder="Min 8 characters" value={form.password} onChange={e=>set("password",e.target.value)}/></div>
+      <div className="form-group"><label className="label">Confirm Password</label><input className="input" type="password" placeholder="Repeat password" value={form.confirm||""} onChange={e=>set("confirm",e.target.value)}/></div>
+      <button className="btn btn-primary w-full" style={{justifyContent:"center",marginTop:6}} onClick={submit} disabled={loading}>{loading?<Spinner size={16}/>:null}Set New Password</button>
+      <div className="auth-toggle"><a onClick={()=>{setMode("forgot");setError("");}}>Resend code</a> · <a onClick={()=>{setMode("login");setError("");}}>Sign In</a></div>
+    </div></div>
+  );
+
   return (
     <div className="auth-page">
       <div className="auth-bg"/>
       <div className="auth-card">
-        <div className="auth-logo">
-          <div className="auth-logo-icon"><Icon name="book" size={26} color="var(--accent)"/></div>
-          <h1 className="auth-title">Libra</h1>
-          <p className="auth-sub">Library Management System</p>
-        </div>
+        {logoBlock}
         <h2 style={{fontSize:19,fontWeight:700,marginBottom:18,textAlign:"center"}}>{mode==="login"?"Welcome back":"Register your library"}</h2>
         {error&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}>{error}</span></div>}
         {mode==="register"&&<>
@@ -485,6 +828,7 @@ function AuthPage({ onAuth }) {
             <button className="btn btn-ghost btn-icon" onClick={()=>setShowPass(!showPass)} style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}><Icon name={showPass?"eyeoff":"eye"} size={15} color="var(--text3)"/></button>
           </div>
         </div>
+        {mode==="login"&&<div style={{textAlign:"right",marginTop:-8,marginBottom:8}}><a style={{fontSize:12,color:"var(--text3)",cursor:"pointer"}} onClick={()=>{setMode("forgot");setError("");}}>Forgot password?</a></div>}
         <button className="btn btn-primary w-full" style={{justifyContent:"center",marginTop:6}} onClick={submit} disabled={loading}>
           {loading?<Spinner size={16}/>:null}{mode==="login"?"Sign In":"Create Account"}
         </button>
@@ -506,15 +850,25 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
     {id:"reminders",icon:"bell",label:"Reminders",section:"manage",badge:urgentReminders>0?urgentReminders:null},
     {id:"expenses",icon:"dollar",label:"Expenses",section:"manage"},
     {id:"reports",icon:"chart",label:"Reports",section:"manage"},
+    {id:"marketing",icon:"megaphone",label:"Marketing",section:"tools"},
+    {id:"settings",icon:"settings",label:"Settings",section:"tools"},
   ];
   return(
     <>
       {isOpen&&<div className="sidebar-overlay" onClick={onClose}/>}
       <aside className={`sidebar${isOpen?" open":""}`}>
-        <div className="sidebar-logo"><div className="logo-text">📚 Libra</div><div className="logo-sub">Library Manager</div></div>
+        <div className="sidebar-logo">
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,var(--accent),#c87a1a)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 2px 8px rgba(232,168,56,0.4)"}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="9" y1="7" x2="15" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="11" x2="15" y2="11" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </div>
+            <div><div className="logo-text" style={{letterSpacing:3,fontSize:17,fontWeight:800}}>LIBRA</div><div className="logo-sub">Library Manager</div></div>
+          </div>
+        </div>
         <nav className="sidebar-nav">
           <div className="nav-section"><div className="nav-section-title">Main</div>{items.filter(i=>i.section==="main").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}</button>)}</div>
           <div className="nav-section"><div className="nav-section-title">Management</div>{items.filter(i=>i.section==="manage").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}{i.badge&&<span className="nbadge">{i.badge}</span>}</button>)}</div>
+          <div className="nav-section"><div className="nav-section-title">Tools</div>{items.filter(i=>i.section==="tools").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}</button>)}</div>
         </nav>
         <div className="sidebar-footer">
           <div className="lib-info"><div className="lib-avatar">{library?.library_name?.[0]||"L"}</div><div><div style={{fontSize:13,fontWeight:600}}>{library?.library_name}</div><div style={{fontSize:11,color:"var(--text3)"}}>{library?.email}</div></div></div>
@@ -528,6 +882,7 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
   const [summary, setSummary] = useState(null);
+  const [showAmounts, setShowAmounts] = useState(false);
   const [loadingSum, setLoadingSum] = useState(true);
 
   useEffect(() => {
@@ -566,7 +921,7 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
         </div>
       </div>
       <div className="card" style={{padding:0}}>
-        <div style={{padding:"18px 18px 0"}}><div className="section-title">Recent Subscriptions</div></div>
+        <div style={{padding:"18px 18px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div className="section-title">Recent Subscriptions</div><button className="btn btn-ghost btn-icon" title={showAmounts?"Hide amounts":"Show amounts"} onClick={()=>setShowAmounts(p=>!p)}><Icon name={showAmounts?"eyeoff":"eye"} size={15} color="var(--text3)"/></button></div>
         <div className="table-container">
           <table className="table">
             <thead><tr><th>Student</th><th>Plan</th><th>Shift</th><th>Amount</th><th>Expiry</th><th>Status</th></tr></thead>
@@ -574,7 +929,7 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
               {(summary?.recentSubscriptions||[]).length===0?<tr><td colSpan={6}><div className="text-muted text-sm" style={{textAlign:"center",padding:32}}>No subscriptions yet</div></td></tr>
                 :(summary?.recentSubscriptions||[]).map(s=>{
                   const diff=daysDiff(s.end_date);
-                  return(<tr key={s.id}><td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td><td className="text-sm">{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td><td className="text-accent font-bold">{formatCurrency(s.amount)}</td><td className="text-sm">{formatDate(s.end_date)}</td><td>{s.status!=="active"?<span className="badge badge-gray">{s.status}</span>:diff<0?<span className="badge badge-red">Expired</span>:diff<=5?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td></tr>);
+                  return(<tr key={s.id}><td><div style={{fontWeight:600}}>{s.student_name}</div><div className="text-xs text-muted">{s.student_phone}</div></td><td className="text-sm">{s.plan_name}</td><td>{s.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{s.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td><td><AmountCell amount={s.amount}/></td><td className="text-sm">{formatDate(s.end_date)}</td><td>{s.status!=="active"?<span className="badge badge-gray">{s.status}</span>:diff<0?<span className="badge badge-red">Expired</span>:diff<=5?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">Active</span>}</td></tr>);
                 })}
             </tbody>
           </table>
@@ -614,13 +969,13 @@ function Students({ data, reload }) {
   const [filter, setFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [edit, setEdit] = useState(null);
-  const [form, setForm] = useState({name:"",phone:"",email:"",address:"",idProof:"",notes:""});
+  const [form, setForm] = useState({name:"",phone:"",email:"",address:"",idProof:"",notes:"",joinDate:today()});
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
 
-  const open=(s=null)=>{setEdit(s);setForm(s?{name:s.name,phone:s.phone,email:s.email||"",address:s.address||"",idProof:s.id_proof||"",notes:s.notes||""}:{name:"",phone:"",email:"",address:"",idProof:"",notes:""});setShowModal(true);};
-  const save=async()=>{if(!form.name||!form.phone)return;setSaving(true);try{if(edit)await api.students.update(edit.id,{name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes,status:edit.status});else await api.students.create({name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes});await reload(["students"]);setShowModal(false);}finally{setSaving(false);}};
+  const open=(s=null)=>{setEdit(s);setForm(s?{name:s.name,phone:s.phone,email:s.email||"",address:s.address||"",idProof:s.id_proof||"",notes:s.notes||"",joinDate:s.join_date?.slice(0,10)||today()}:{name:"",phone:"",email:"",address:"",idProof:"",notes:"",joinDate:today()});setShowModal(true);};
+  const save=async()=>{if(!form.name||!form.phone)return;setSaving(true);try{if(edit)await api.students.update(edit.id,{name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes,status:edit.status,joinDate:form.joinDate});else await api.students.create({name:form.name,phone:form.phone,email:form.email,address:form.address,idProof:form.idProof,notes:form.notes,joinDate:form.joinDate});await reload(["students"]);setShowModal(false);}finally{setSaving(false);}};
   const del=async(id)=>{await api.students.delete(id);await reload(["students"]);setConfirmDel(null);};
   const toggle=async(s)=>{await api.students.update(s.id,{name:s.name,phone:s.phone,email:s.email,address:s.address,idProof:s.id_proof,notes:s.notes,status:s.status==="active"?"inactive":"active"});await reload(["students"]);};
 
@@ -634,12 +989,12 @@ function Students({ data, reload }) {
       <div className="card" style={{padding:0}}><div className="table-container"><table className="table"><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Email</th><th>Joined</th><th>Subscription</th><th>Status</th><th></th></tr></thead><tbody>
         {students.length===0?<tr><td colSpan={8}><div className="empty-state"><div className="empty-icon"><Icon name="users" size={24} color="var(--text3)"/></div><div className="empty-title">No students</div></div></td></tr>
           :students.map((s,i)=>{
-            const sub=s.active_subscription;
+            const sub=s.active_subscription||(data.subscriptions||[]).filter(x=>x.student_id===s.id&&(x.status==="active"||daysDiff(x.end_date)>=-10)).sort((a,b)=>b.end_date>a.end_date?1:-1)[0];
             const diff=sub?daysDiff(sub.end_date):null;
-            return(<tr key={s.id}><td className="text-xs text-muted">{i+1}</td><td><div style={{display:"flex",alignItems:"center",gap:9}}><div className="avatar" style={{background:"var(--accent-dim)",color:"var(--accent)"}}>{s.name?.[0]?.toUpperCase()}</div><div><div style={{fontWeight:600}}>{s.name}</div><div className="text-xs text-muted">{s.address||"—"}</div></div></div></td><td className="text-sm">{s.phone}</td><td className="text-sm text-muted">{s.email||"—"}</td><td className="text-sm text-muted">{formatDate(s.join_date)}</td><td>{sub?(diff<=3?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">{sub.plan_name}</span>):<span className="badge badge-gray">None</span>}</td><td><button onClick={()=>toggle(s)} className={`badge ${s.status==="active"?"badge-green":"badge-gray"}`} style={{cursor:"pointer",border:"none"}}>{s.status}</button></td><td><div className="flex gap-2"><button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(s.phone,`Hi ${s.name}, this is a message from ${s.address||'the library'}. Please contact us regarding your library membership.`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={14} color="#25D366"/></button><button className="btn btn-ghost btn-icon" onClick={()=>open(s)}><Icon name="edit" size={14}/></button><button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(s.id)} style={{color:"var(--red)"}}><Icon name="trash" size={14}/></button></div></td></tr>);
+            return(<tr key={s.id}><td className="text-xs text-muted">{i+1}</td><td><div style={{display:"flex",alignItems:"center",gap:9}}><div className="avatar" style={{background:"var(--accent-dim)",color:"var(--accent)"}}>{s.name?.[0]?.toUpperCase()}</div><div><div style={{fontWeight:600}}>{s.name}</div><div className="text-xs text-muted">{s.address||"—"}</div></div></div></td><td className="text-sm">{s.phone}</td><td className="text-sm text-muted">{s.email||"—"}</td><td className="text-sm text-muted">{formatDate(s.join_date)}</td><td>{sub?(diff<0?<span className="badge badge-red">Exp {Math.abs(diff)}d ago</span>:diff<=3?<span className="badge badge-red">Exp {diff}d</span>:diff<=7?<span className="badge badge-yellow">Exp {diff}d</span>:<span className="badge badge-green">{sub.plan_name}</span>):<span className="badge badge-gray">None</span>}</td><td><button onClick={()=>toggle(s)} className={`badge ${s.status==="active"?"badge-green":"badge-gray"}`} style={{cursor:"pointer",border:"none"}}>{s.status}</button></td><td><div className="flex gap-2"><button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(s.phone,`Hi ${s.name}, this is a message from ${s.address||'the library'}. Please contact us regarding your library membership.`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={14} color="#25D366"/></button><button className="btn btn-ghost btn-icon" onClick={()=>open(s)}><Icon name="edit" size={14}/></button><button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(s.id)} style={{color:"var(--red)"}}><Icon name="trash" size={14}/></button></div></td></tr>);
           })}
       </tbody></table></div></div>
-      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Add"} Student</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-row"><div className="form-group"><label className="label">Full Name *</label><input className="input" placeholder="Full name" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-group"><label className="label">Phone *</label><input className="input" placeholder="Phone" value={form.phone} onChange={e=>set("phone",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Email</label><input className="input" placeholder="Email" value={form.email} onChange={e=>set("email",e.target.value)}/></div><div className="form-group"><label className="label">ID Proof</label><input className="input" placeholder="Aadhar/PAN" value={form.idProof} onChange={e=>set("idProof",e.target.value)}/></div></div><div className="form-group"><label className="label">Address</label><input className="input" placeholder="Address" value={form.address} onChange={e=>set("address",e.target.value)}/></div><div className="form-group"><label className="label">Notes</label><textarea className="input textarea" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Add"}</button></div></div></div>}
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Add"} Student</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-row"><div className="form-group"><label className="label">Full Name *</label><input className="input" placeholder="Full name" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-group"><label className="label">Phone *</label><input className="input" placeholder="Phone" value={form.phone} onChange={e=>set("phone",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Email</label><input className="input" placeholder="Email" value={form.email} onChange={e=>set("email",e.target.value)}/></div><div className="form-group"><label className="label">ID Proof</label><input className="input" placeholder="Aadhar/PAN" value={form.idProof} onChange={e=>set("idProof",e.target.value)}/></div></div><div className="form-row"><div className="form-group"><label className="label">Address</label><input className="input" placeholder="Address" value={form.address} onChange={e=>set("address",e.target.value)}/></div><div className="form-group"><label className="label">Join Date</label><input className="input" type="date" value={form.joinDate} onChange={e=>set("joinDate",e.target.value)}/></div></div><div className="form-group"><label className="label">Notes</label><textarea className="input textarea" value={form.notes} onChange={e=>set("notes",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Add"}</button></div></div></div>}
     </div>
   );
 }
@@ -673,7 +1028,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   const [editSub, setEditSub]     = useState(null); // subscription being edited
   const [search, setSearch]       = useState("");
   const [filter, setFilter]       = useState("all");
-  const emptyForm = {studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:""};
+  const emptyForm = {studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:"",isRenewal:false};
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
@@ -721,7 +1076,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   const save = async () => {
     if (!form.studentId || !form.planId) { setError("Please select a student and plan."); return; }
     // Block duplicate active subscription
-    if (!editSub && getActiveSubForStudent(form.studentId)) {
+    if (!editSub && !form.isRenewal && getActiveSubForStudent(form.studentId)) {
       setError("This student already has an active subscription. Cancel it first or use Edit.");
       return;
     }
@@ -805,7 +1160,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   }).sort((a,b)=>b.created_at>a.created_at?1:-1);
 
   // Warn if selected student already has active sub (new sub only)
-  const existingActiveSub = form.studentId && !editSub ? getActiveSubForStudent(form.studentId) : null;
+  const existingActiveSub = form.studentId && !editSub && !form.isRenewal ? getActiveSubForStudent(form.studentId) : null;
 
   return(
     <div>
@@ -833,7 +1188,11 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
               <td><div className="flex gap-2">
                 <button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(s.student_phone,`Hi ${s.student_name}, your library subscription (${s.plan_name}) ${diff<0?"has expired":"will expire on "+formatDate(s.end_date)}. Please renew to continue your access. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={14} color="#25D366"/></button>
                 {!exp&&<button className="btn btn-secondary btn-sm" onClick={()=>openEdit(s)}><Icon name="edit" size={13}/>Edit</button>}
-                <button className="btn btn-secondary btn-sm" onClick={()=>{setEditSub(null);setForm({...emptyForm,studentId:s.student_id,planId:s.plan_id||"",seatNumber:String(s.seat_number||""),shiftId:s.shift_id||"",startDate:today(),notes:"Renewal"});setShowModal(true);}}>Renew</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>{
+                  const expDate=s.end_date?.slice(0,10);
+                  // If sub is expired, start from expiry date; if still active, start from day after expiry
+                  const renewStart=expDate?(daysDiff(expDate)<0?expDate:addDays(expDate,1)):today();
+                  setEditSub(null);setForm({...emptyForm,studentId:s.student_id,planId:s.plan_id||"",seatNumber:String(s.seat_number||""),shiftId:s.shift_id||"",startDate:renewStart,notes:"Renewal",isRenewal:true});setShowModal(true);}}>Renew</button>
                 {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>cancel(s.id)}>Cancel</button>}
               </div></td>
             </tr>);
@@ -842,7 +1201,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
 
       {showModal&&<div className="modal-overlay"><div className="modal modal-lg">
         <div className="modal-header">
-          <h2 className="modal-title">{editSub?"Edit Subscription":"New Subscription"}{form.seatNumber?` — Seat #${form.seatNumber}`:""}</h2>
+          <h2 className="modal-title">{editSub?"Edit Subscription":form.isRenewal?"Renew Subscription":"New Subscription"}{form.seatNumber?` — Seat #${form.seatNumber}`:""}</h2>
           <button className="btn btn-ghost btn-icon" onClick={closeModal}><Icon name="x" size={17}/></button>
         </div>
         <div className="modal-body">
@@ -908,7 +1267,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving||!!existingActiveSub}>{saving?<Spinner size={15}/>:null}{editSub?"Save Changes":"Create Subscription"}</button>
+          <button className="btn btn-primary" onClick={save} disabled={saving||!!existingActiveSub}>{saving?<Spinner size={15}/>:null}{editSub?"Save Changes":form.isRenewal?"Renew Subscription":"Create Subscription"}</button>
         </div>
       </div></div>}
     </div>
@@ -942,7 +1301,7 @@ function Reminders({ data, reload }) {
   return(
     <div>
       <div className="page-header"><div className="page-header-left"><h1>Reminders</h1><p>{pending.length} pending</p></div><button className="btn btn-primary" onClick={()=>setShowModal(true)}><Icon name="plus" size={15}/>Add</button></div>
-      {pending.length>0&&<div style={{marginBottom:24}}><div className="section-title"><Icon name="bell" size={13} color="var(--text3)"/>Pending ({pending.length})</div>{pending.map(r=>{const diff=daysDiff(r.due_date);return(<div key={r.id} className={`reminder-chip ${getClass(r)}`}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}><span className={`badge ${typeColor[r.type]||"badge-gray"}`} style={{textTransform:"capitalize",fontSize:11}}>{r.type}</span>{r.student_name&&<span style={{fontSize:13,fontWeight:600}}>{r.student_name}</span>}<span className="text-xs text-muted">{r.student_phone}</span></div><div style={{fontSize:13.5}}>{r.message}</div><div style={{display:"flex",gap:12,marginTop:5}}><span className="text-xs text-muted">Due: {formatDate(r.due_date)}</span>{diff<0?<span className="text-xs text-red font-bold">Overdue {Math.abs(diff)}d</span>:diff===0?<span className="text-xs text-accent font-bold">Due today</span>:<span className="text-xs" style={{color:diff<=3?"var(--red)":"var(--text3)"}}>in {diff}d</span>}</div></div><div className="flex gap-2">{r.student_phone&&<button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(r.student_phone,`Hi ${r.student_name||'there'}, ${r.message}. Please visit the library at your earliest convenience. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={15} color="#25D366"/></button>}<button className="btn btn-ghost btn-icon" onClick={()=>toggle(r.id)}><Icon name="check" size={15} color="var(--green)"/></button><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={15} color="var(--red)"/></button></div></div>);})}</div>}
+      {pending.length>0&&<div style={{marginBottom:24}}><div className="section-title"><Icon name="bell" size={13} color="var(--text3)"/>Pending ({pending.length})</div>{pending.map(r=>{const diff=daysDiff(r.due_date);return(<div key={r.id} className={`reminder-chip ${getClass(r)}`}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}><span className={`badge ${typeColor[r.type]||"badge-gray"}`} style={{textTransform:"capitalize",fontSize:11}}>{r.type}</span>{r.student_name&&<span style={{fontSize:13,fontWeight:600}}>{r.student_name}</span>}<span className="text-xs text-muted">{r.student_phone}</span></div><div style={{fontSize:13.5}}>{r.message}</div><div style={{display:"flex",gap:12,marginTop:5,flexWrap:"wrap"}}><span className="text-xs text-muted">Due: {formatDate(r.due_date)}</span>{diff<0?<span className="text-xs text-red font-bold">Overdue {Math.abs(diff)}d</span>:diff===0?<span className="text-xs text-accent font-bold">Due today</span>:<span className="text-xs" style={{color:diff<=3?"var(--red)":"var(--text3)"}}>in {diff}d</span>}{(()=>{const stuSub=(data.subscriptions||[]).find(sub=>sub.student_id===r.student_id&&sub.status==="active");return stuSub?<span className="text-xs text-muted">· Sub expires: <strong style={{color:daysDiff(stuSub.end_date)<=3?"var(--red)":"var(--text)"}}>{formatDate(stuSub.end_date)}</strong></span>:null;})()}</div></div><div className="flex gap-2">{r.student_phone&&<button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(r.student_phone,`Hi ${r.student_name||'there'}, ${r.message}. Please visit the library at your earliest convenience. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={15} color="#25D366"/></button>}<button className="btn btn-ghost btn-icon" onClick={()=>toggle(r.id)}><Icon name="check" size={15} color="var(--green)"/></button><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={15} color="var(--red)"/></button></div></div>);})}</div>}
       {done.length>0&&<div><div className="section-title">Completed ({done.length})</div>{done.map(r=><div key={r.id} className="reminder-chip ok" style={{opacity:0.5}}><Icon name="check" size={14} color="var(--green)"/><div style={{flex:1}}><div style={{fontSize:13,textDecoration:"line-through"}}>{r.message}</div><div className="text-xs text-muted">Due {formatDate(r.due_date)}</div></div><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={14} color="var(--text3)"/></button></div>)}</div>}
       {reminders.length===0&&<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="bell" size={24} color="var(--text3)"/></div><div className="empty-title">No reminders</div><div className="empty-sub">Renewal reminders are auto-created on subscription</div></div></div>}
       {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">Add Reminder</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Student (optional)</label><select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}><option value="">No specific student</option>{(data.students||[]).map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}</select></div><div className="form-row"><div className="form-group"><label className="label">Type</label><select className="input select" value={form.type} onChange={e=>set("type",e.target.value)}>{["payment","renewal","followup","custom"].map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Due Date</label><input className="input" type="date" value={form.dueDate} onChange={e=>set("dueDate",e.target.value)}/></div></div><div className="form-group"><label className="label">Message *</label><textarea className="input textarea" placeholder="Reminder message…" value={form.message} onChange={e=>set("message",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Add</button></div></div></div>}
@@ -1057,16 +1416,19 @@ export default function App() {
   const handleUpdate  = (upd) => {
     setLibrary(prev => ({
       ...prev,
-      ...(upd.totalSeats ? { total_seats: upd.totalSeats } : {}),
-      ...(upd.open_time  ? { open_time:   upd.open_time  } : {}),
-      ...(upd.close_time ? { close_time:  upd.close_time } : {}),
+      ...(upd.totalSeats   ? { total_seats:   upd.totalSeats   } : {}),
+      ...(upd.open_time    ? { open_time:     upd.open_time    } : {}),
+      ...(upd.close_time   ? { close_time:    upd.close_time   } : {}),
+      ...(upd.owner_name   ? { owner_name:    upd.owner_name   } : {}),
+      ...(upd.library_name ? { library_name:  upd.library_name } : {}),
+      ...(upd.city         ? { city:          upd.city         } : {}),
     }));
   };
   const handleCreateSub = (pf) => { setSubPrefill(pf); setPage("subscriptions"); };
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
 
-  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"] };
+  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"] };
   const [t1,t2] = pageTitle[page] || ["",""];
 
   if (checking) return (
@@ -1097,7 +1459,7 @@ export default function App() {
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               {urgentReminders>0&&<button className="btn btn-ghost btn-icon" onClick={()=>setPage("reminders")} style={{position:"relative"}}><Icon name="bell" size={19} color="var(--accent)"/><span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"var(--red)",border:"2px solid var(--surface)"}}/></button>}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 11px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
-                <div className="lib-avatar" style={{width:26,height:26,fontSize:11}}>{library.library_name?.[0]}</div>
+                <div className="lib-avatar" style={{width:26,height:26,fontSize:11}}>{library.owner_name?.[0]?.toUpperCase()||"U"}</div>
                 <span style={{fontSize:12.5,fontWeight:600}}>{library.owner_name}</span>
               </div>
             </div>
@@ -1113,6 +1475,8 @@ export default function App() {
             {page==="reminders"&&<Reminders data={data} reload={reload}/>}
             {page==="expenses"&&<Expenses data={data} reload={reload}/>}
             {page==="reports"&&<Reports data={data}/>}
+            {page==="marketing"&&<Marketing data={data} library={library}/>}
+            {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
           </div>
         </main>
       </div>

@@ -28,8 +28,12 @@ export const api = {
     register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
     login:    (body) => request('/api/auth/login',    { method: 'POST', body: JSON.stringify(body) }),
     me:       ()     => request('/api/auth/me'),
-    updateSeats:   (totalSeats)          => request('/api/auth/seats',    { method: 'PATCH', body: JSON.stringify({ totalSeats }) }),
-    updateOpHours: (openTime, closeTime) => request('/api/auth/ophours', { method: 'PATCH', body: JSON.stringify({ openTime, closeTime }) }),
+    updateSeats:    (totalSeats)           => request('/api/auth/seats',    { method: 'PATCH', body: JSON.stringify({ totalSeats }) }),
+    updateOpHours:  (openTime, closeTime)  => request('/api/auth/ophours',  { method: 'PATCH', body: JSON.stringify({ openTime, closeTime }) }),
+    updateProfile:  (body)                 => request('/api/auth/profile',  { method: 'PATCH', body: JSON.stringify(body) }),
+    changePassword:  (body)                 => request('/api/auth/password',       { method: 'PATCH', body: JSON.stringify(body) }),
+    forgotPassword:  (body)                 => request('/api/auth/forgot-password', { method: 'POST',  body: JSON.stringify(body) }),
+    resetPassword:   (body)                 => request('/api/auth/reset-password',  { method: 'POST',  body: JSON.stringify(body) }),
   },
 
   // ─── Shifts ──────────────────────────────────────────────────────────────

@@ -79,8 +79,8 @@ router.get('/students', async (req, res) => {
   const r = await pool.query(
     `SELECT s.*,
       (SELECT row_to_json(sub) FROM (
-        SELECT id,plan_name,shift_name,end_date,status FROM subscriptions
-        WHERE student_id=s.id AND status='active' AND end_date>=CURRENT_DATE
+        SELECT id,plan_name,shift_name,end_date,status,seat_number FROM subscriptions
+        WHERE student_id=s.id AND status='active'
         ORDER BY end_date DESC LIMIT 1
       ) sub) AS active_subscription
      FROM students s WHERE s.library_id=$1 ORDER BY s.created_at DESC`,
@@ -89,20 +89,22 @@ router.get('/students', async (req, res) => {
   res.json(r.rows);
 });
 router.post('/students', async (req, res) => {
-  const { name, phone, email, address, idProof, notes } = req.body;
+  const { name, phone, email, address, idProof, notes, joinDate } = req.body;
   if (!name || !phone) return res.status(400).json({ error: 'name and phone required' });
   const r = await pool.query(
-    `INSERT INTO students (library_id,name,phone,email,address,id_proof,notes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [libId(req), name, phone, email || null, address || null, idProof || null, notes || null]
+    `INSERT INTO students (library_id,name,phone,email,address,id_proof,notes,join_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [libId(req), name, phone, email || null, address || null, idProof || null, notes || null, joinDate || null]
   );
   res.status(201).json(r.rows[0]);
 });
 router.put('/students/:id', async (req, res) => {
-  const { name, phone, email, address, idProof, notes, status } = req.body;
+  const { name, phone, email, address, idProof, notes, status, joinDate } = req.body;
   const r = await pool.query(
-    `UPDATE students SET name=$1,phone=$2,email=$3,address=$4,id_proof=$5,notes=$6,status=$7,updated_at=NOW()
-     WHERE id=$8 AND library_id=$9 RETURNING *`,
-    [name, phone, email || null, address || null, idProof || null, notes || null, status || 'active', req.params.id, libId(req)]
+    `UPDATE students SET name=$1,phone=$2,email=$3,address=$4,id_proof=$5,notes=$6,status=$7,
+     join_date=COALESCE($8,join_date),updated_at=NOW()
+     WHERE id=$9 AND library_id=$10 RETURNING *`,
+    [name, phone, email || null, address || null, idProof || null, notes || null,
+     status || 'active', joinDate || null, req.params.id, libId(req)]
   );
   if (!r.rows.length) return res.status(404).json({ error: 'Student not found' });
   res.json(r.rows[0]);
