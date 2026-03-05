@@ -888,7 +888,7 @@ function TrialBanner({ library, onOpenBilling }) {
   if (!type || type === 'info') return null;
 
   const daysLeft = getTrialDaysLeft(library);
-  const WA_NUMBER = "919807139295"; // ← update with real number
+  const WA_NUMBER = "919999999999"; // ← update with real number
   const waMsg = `Hi LibraryDesk Team! I would like to activate my library account: ${library?.library_name}. Please help me with the plan options.`;
   const waUrl = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(waMsg)}`;
 
@@ -949,7 +949,7 @@ function TrialBanner({ library, onOpenBilling }) {
 function Billing({ library }) {
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
-  const WA_NUMBER = "919807139295"; // ← update with real number
+  const WA_NUMBER = "919999999999"; // ← update with real number
 
   useEffect(() => {
     api.auth.billing().then(setBilling).catch(()=>{}).finally(()=>setLoading(false));
@@ -1610,11 +1610,7 @@ export default function App() {
   const [library, setLibrary]     = useState(null);
   const [checking, setChecking]   = useState(true);
   const [page, setPage]           = useState("dashboard");
-  // ── Trial / billing state ──
-  const trialDays     = library?.trial_ends_at ? Math.ceil((new Date(library.trial_ends_at) - new Date()) / 86400000) : null;
-  const subStatus     = library?.subscription_status || "trial";
-  const isReadOnly    = subStatus === "expired" || subStatus === "suspended" || (subStatus === "trial" && trialDays !== null && trialDays < 0);
-  const showTrialWarn = subStatus === "trial" && trialDays !== null && trialDays >= 0 && trialDays <= 7;
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [subPrefill, setSubPrefill]   = useState(null);
 
@@ -1696,10 +1692,10 @@ export default function App() {
               </div>
             )}
             {page==="dashboard"&&<Dashboard data={data} library={library} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
-            {page==="students"&&<Students data={data} reload={isReadOnly?null:reload}/>}
+            {page==="students"&&<Students data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="plans"&&<Plans data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="shifts"&&<Shifts data={data} reload={reload}/>}
-            {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={isReadOnly?null:reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)}/>}
+            {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)} readonly={isReadOnly(library)}/>}
             {page==="seats"&&<SeatsPage data={data} library={library} reload={reload} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
             {page==="reminders"&&<Reminders data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="expenses"&&<Expenses data={data} reload={reload} readonly={isReadOnly(library)}/>}
