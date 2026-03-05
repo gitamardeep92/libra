@@ -10,6 +10,38 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-
 const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 const addDays    = (date, days) => { const d = new Date(date); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
 const daysDiff   = (d1, d2 = today()) => Math.ceil((new Date(d1) - new Date(d2)) / 86400000);
+
+// ── Trial / billing helpers ───────────────────────────────────────────────────
+function getTrialDaysLeft(library) {
+  if (!library?.trial_ends_at) return null;
+  return daysDiff(library.trial_ends_at);
+}
+function isReadOnly(library) {
+  if (!library) return false;
+  const s = library.subscription_status;
+  if (s === 'active') return false;
+  if (s === 'trial') {
+    const d = getTrialDaysLeft(library);
+    return d !== null && d < 0;
+  }
+  return s === 'expired' || s === 'suspended';
+}
+function getTrialBannerType(library) {
+  if (!library) return null;
+  const s = library.subscription_status;
+  if (s === 'active') return null;
+  if (s === 'suspended') return 'suspended';
+  if (s === 'expired') return 'expired';
+  if (s === 'trial') {
+    const d = getTrialDaysLeft(library);
+    if (d === null) return null;
+    if (d < 0)  return 'expired';
+    if (d <= 3) return 'urgent';
+    if (d <= 7) return 'warning';
+    return 'info';
+  }
+  return null;
+}
 const openWhatsApp = (phone, message) => {
   const cleaned = phone ? phone.replace(/\D/g, '') : '';
   const num = cleaned.startsWith('91') ? cleaned : `91${cleaned}`;
