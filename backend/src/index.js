@@ -34,8 +34,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/auth',  authRouter);
-app.use('/api',       apiRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api',       apiRouter);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
