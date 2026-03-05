@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LibraryDesk — Smart Library Management Software</title>
+  <meta name="description" content="India's smartest library management software. Manage students, seats, subscriptions, reminders and payments — all in one place. Start free for 14 days."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:       #060810;
+      --bg2:      #0b0e1a;
+      --bg3:      #0f1422;
+      --surface:  #131829;
+      --surface2: #1a2035;
+      --border:   #1e2640;
+      --border2:  #2a3356;
+      --text:     #e8ecf8;
+      --text2:    #8b96b8;
+      --text3:    #4a5578;
+      --gold:     #e8a838;
+      --gold2:    #f5c842;
+      --gold-dim: #1e1508;
+      --red:      #ef4444;
+      --green:    #22c55e;
+      --font:     'DM Sans', sans-serif;
+      --display:  'Bebas Neue', cursive;
+      --mono:     'DM Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); overflow-x: hidden; }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.4;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+    @keyframes glow     { 0%,100% { opacity:.6; } 50% { opacity:1; } }
+    @keyframes float    { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
+    @keyframes spin     { to { transform:rotate(360deg); } }
+    @keyframes shimmer  { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+    @keyframes pulse    { 0%,100% { transform:scale(1); } 50% { transform:scale(1.05); } }
+    @keyframes scanline { 0% { transform:translateY(-100%); } 100% { transform:translateY(100vh); } }
+
+    .fade-up   { opacity:0; transform:translateY(30px); transition: opacity .6s ease, transform .6s ease; }
+    .fade-up.visible { opacity:1; transform:translateY(0); }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 0 5%;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 68px;
+      background: rgba(6,8,16,0); 
+      border-bottom: 1px solid transparent;
+      transition: background .3s, border-color .3s, backdrop-filter .3s;
+    }
+    nav.scrolled {
+      background: rgba(6,8,16,0.92);
+      border-color: var(--border);
+      backdrop-filter: blur(16px);
+    }
+    .nav-logo { display:flex; align-items:center; gap:10px; text-decoration:none; }
+    .nav-logo-icon {
+      width:36px; height:36px; border-radius:9px;
+      background: linear-gradient(135deg, var(--gold), #c87a1a);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 0 20px rgba(232,168,56,.4);
+    }
+    .nav-logo-text { font-family:var(--display); font-size:22px; letter-spacing:3px; color:var(--text); }
+    .nav-links { display:flex; align-items:center; gap:32px; }
+    .nav-links a { color:var(--text2); text-decoration:none; font-size:14px; font-weight:500; transition:color .2s; }
+    .nav-links a:hover { color:var(--gold); }
+    .nav-cta { display:flex; align-items:center; gap:12px; }
+    .btn-nav-login { color:var(--text2); text-decoration:none; font-size:14px; font-weight:500; padding:8px 16px; border-radius:8px; transition:all .2s; border:1px solid transparent; }
+    .btn-nav-login:hover { border-color:var(--border2); color:var(--text); }
+    .btn-nav-signup {
+      background: linear-gradient(135deg, var(--gold), #c87a1a);
+      color: #000; font-weight:700; font-size:13px;
+      padding:9px 20px; border-radius:8px; text-decoration:none;
+      transition: all .2s; box-shadow:0 4px 16px rgba(232,168,56,.25);
+    }
+    .btn-nav-signup:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(232,168,56,.4); }
+    .hamburger { display:none; flex-direction:column; gap:5px; cursor:pointer; padding:4px; }
+    .hamburger span { width:22px; height:2px; background:var(--text2); border-radius:2px; transition:all .3s; }
+
+    /* ── HERO ── */
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction:column; align-items:center; justify-content:center;
+      padding: 120px 5% 80px;
+      position: relative; overflow: hidden;
+      text-align: center;
+    }
+    .hero-grid {
+      position:absolute; inset:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(232,168,56,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(232,168,56,.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+    }
+    .hero-glow {
+      position:absolute; width:600px; height:600px; border-radius:50%;
+      background: radial-gradient(circle, rgba(232,168,56,.12) 0%, transparent 70%);
+      top:50%; left:50%; transform:translate(-50%,-50%);
+      animation: glow 4s ease-in-out infinite;
+      pointer-events:none;
+    }
+    .hero-badge {
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--gold-dim); border:1px solid rgba(232,168,56,.3);
+      padding:6px 16px; border-radius:20px; margin-bottom:28px;
+      animation: fadeUp .6s ease forwards;
+    }
+    .hero-badge-dot { width:6px; height:6px; border-radius:50%; background:var(--gold); animation:pulse 2s infinite; }
+    .hero-badge span { font-size:12px; font-weight:600; color:var(--gold); letter-spacing:.5px; }
+    .hero-h1 {
+      font-family: var(--display);
+      font-size: clamp(52px, 8vw, 108px);
+      line-height: .95;
+      letter-spacing: 2px;
+      margin-bottom: 24px;
+      animation: fadeUp .6s .1s ease both;
+    }
+    .hero-h1 span { 
+      background: linear-gradient(135deg, var(--gold), var(--gold2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      display:block;
+    }
+    .hero-sub {
+      font-size:clamp(15px,2vw,19px); color:var(--text2); max-width:580px; line-height:1.7;
+      margin:0 auto 40px; animation: fadeUp .6s .2s ease both;
+    }
+    .hero-actions {
+      display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;
+      animation: fadeUp .6s .3s ease both;
+    }
+    .btn-primary {
+      display:inline-flex; align-items:center; gap:8px;
+      background: linear-gradient(135deg, var(--gold), #c87a1a);
+      color:#000; font-weight:700; font-size:15px;
+      padding:14px 32px; border-radius:10px; text-decoration:none;
+      transition:all .2s; box-shadow:0 8px 32px rgba(232,168,56,.3);
+      border:none; cursor:pointer; font-family:var(--font);
+    }
+    .btn-primary:hover { transform:translateY(-2px); box-shadow:0 12px 40px rgba(232,168,56,.45); }
+    .btn-secondary {
+      display:inline-flex; align-items:center; gap:8px;
+      background:transparent; color:var(--text);
+      border:1.5px solid var(--border2); font-weight:600; font-size:15px;
+      padding:13px 28px; border-radius:10px; text-decoration:none;
+      transition:all .2s; cursor:pointer; font-family:var(--font);
+    }
+    .btn-secondary:hover { border-color:var(--gold); color:var(--gold); }
+    .hero-trial { font-size:12px; color:var(--text3); margin-top:14px; animation:fadeUp .6s .4s ease both; }
+    .hero-trial span { color:var(--gold); }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+      padding:32px 5%;
+      display:grid; grid-template-columns:repeat(4,1fr);
+      position:relative; z-index:1;
+    }
+    .stat-item { text-align:center; padding:0 20px; border-right:1px solid var(--border); }
+    .stat-item:last-child { border-right:none; }
+    .stat-num {
+      font-family:var(--display); font-size:48px; letter-spacing:1px;
+      background:linear-gradient(135deg,var(--gold),var(--gold2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .stat-label { font-size:13px; color:var(--text3); margin-top:4px; font-weight:500; }
+
+    /* ── SECTION BASE ── */
+    section { position:relative; z-index:1; }
+    .section-inner { max-width:1100px; margin:0 auto; padding:100px 5%; }
+    .section-tag {
+      display:inline-block; font-size:11px; font-weight:700; letter-spacing:2px;
+      text-transform:uppercase; color:var(--gold);
+      background:var(--gold-dim); border:1px solid rgba(232,168,56,.2);
+      padding:5px 14px; border-radius:20px; margin-bottom:16px;
+    }
+    .section-h2 {
+      font-family:var(--display); font-size:clamp(36px,5vw,64px);
+      letter-spacing:2px; line-height:1; margin-bottom:16px;
+    }
+    .section-h2 em { font-style:normal; color:var(--gold); }
+    .section-sub { font-size:17px; color:var(--text2); max-width:560px; line-height:1.7; }
+
+    /* ── FEATURES ── */
+    #features { background:var(--bg2); }
+    #features::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+    .features-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
+      background:var(--border); border:1px solid var(--border); border-radius:16px;
+      overflow:hidden; margin-top:56px;
+    }
+    .feature-card {
+      background:var(--bg2); padding:32px 28px;
+      transition:background .2s;
+      position:relative; overflow:hidden;
+    }
+    .feature-card:hover { background:var(--surface); }
+    .feature-card::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg, rgba(232,168,56,.05), transparent);
+      opacity:0; transition:opacity .3s;
+    }
+    .feature-card:hover::before { opacity:1; }
+    .feature-icon {
+      width:48px; height:48px; border-radius:12px;
+      background:var(--gold-dim); border:1px solid rgba(232,168,56,.2);
+      display:flex; align-items:center; justify-content:center;
+      margin-bottom:20px; font-size:22px;
+    }
+    .feature-title { font-size:17px; font-weight:700; margin-bottom:10px; }
+    .feature-desc { font-size:14px; color:var(--text2); line-height:1.7; }
+
+    /* ── DEMO SECTION ── */
+    #demo { background:var(--bg); }
+    .demo-window {
+      margin-top:56px;
+      background:var(--surface); border:1px solid var(--border2);
+      border-radius:16px; overflow:hidden;
+      box-shadow:0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(232,168,56,.1);
+      animation: float 6s ease-in-out infinite;
+    }
+    .demo-titlebar {
+      background:var(--surface2); padding:12px 16px;
+      display:flex; align-items:center; gap:8px;
+      border-bottom:1px solid var(--border);
+    }
+    .demo-dot { width:10px; height:10px; border-radius:50%; }
+    .demo-url {
+      flex:1; background:var(--bg3); border-radius:6px;
+      padding:5px 12px; font-family:var(--mono); font-size:11px; color:var(--text3);
+      margin:0 8px;
+    }
+    .demo-screen {
+      padding:24px;
+      background:linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+      min-height:360px;
+      display:grid; grid-template-columns:200px 1fr; gap:0;
+    }
+    .demo-sidebar {
+      background:var(--surface); border-right:1px solid var(--border);
+      border-radius:10px 0 0 10px; padding:16px 12px;
+    }
+    .demo-nav-item {
+      display:flex; align-items:center; gap:8px; padding:8px 10px;
+      border-radius:7px; font-size:12px; color:var(--text3); margin-bottom:3px;
+    }
+    .demo-nav-item.active { background:var(--gold-dim); color:var(--gold); font-weight:600; }
+    .demo-nav-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
+    .demo-content { padding:20px; }
+    .demo-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+    .demo-stat {
+      background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px;
+    }
+    .demo-stat-val { font-family:var(--display); font-size:24px; color:var(--gold); }
+    .demo-stat-label { font-size:10px; color:var(--text3); margin-top:2px; }
+    .demo-table { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .demo-th { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:8px; padding:8px 12px; background:var(--surface2); }
+    .demo-th span { font-size:9px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
+    .demo-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:8px; padding:8px 12px; border-top:1px solid var(--border); align-items:center; }
+    .demo-row span { font-size:11px; color:var(--text2); }
+    .demo-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:9px; font-weight:700; }
+    .demo-badge.green { background:#0f2a1a; color:#22c55e; }
+    .demo-badge.yellow { background:#2a2010; color:#f59e0b; }
+
+    /* ── WHY CHOOSE US ── */
+    #why { background:var(--bg3); }
+    #why::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg,transparent,var(--border2),transparent);
+    }
+    .why-grid { display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; margin-top:56px; }
+    .why-list { display:flex; flex-direction:column; gap:20px; }
+    .why-item {
+      display:flex; gap:16px; align-items:flex-start;
+      padding:20px; background:var(--surface); border:1px solid var(--border);
+      border-radius:12px; transition:all .2s;
+    }
+    .why-item:hover { border-color:rgba(232,168,56,.3); transform:translateX(6px); }
+    .why-icon {
+      width:40px; height:40px; border-radius:10px; flex-shrink:0;
+      background:var(--gold-dim); border:1px solid rgba(232,168,56,.2);
+      display:flex; align-items:center; justify-content:center; font-size:18px;
+    }
+    .why-title { font-size:15px; font-weight:700; margin-bottom:6px; }
+    .why-desc { font-size:13px; color:var(--text2); line-height:1.6; }
+    .why-visual {
+      position:relative; display:flex; flex-direction:column; gap:12px;
+    }
+    .why-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px;
+      position:relative; overflow:hidden;
+    }
+    .why-card-glow {
+      position:absolute; top:-20px; right:-20px; width:80px; height:80px; border-radius:50%;
+      background:radial-gradient(circle, rgba(232,168,56,.15), transparent);
+    }
+    .why-card-title { font-size:13px; color:var(--text3); margin-bottom:8px; }
+    .why-card-val { font-family:var(--display); font-size:32px; color:var(--gold); }
+    .why-progress { height:4px; background:var(--border); border-radius:2px; margin-top:10px; overflow:hidden; }
+    .why-progress-fill { height:100%; background:linear-gradient(90deg,var(--gold),var(--gold2)); border-radius:2px; transition:width 1s ease; }
+
+    /* ── PRICING ── */
+    #pricing { background:var(--bg2); }
+    .pricing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:56px; }
+    .pricing-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:16px; padding:32px 28px; position:relative; overflow:hidden;
+      transition:transform .2s, border-color .2s;
+    }
+    .pricing-card:hover { transform:translateY(-4px); }
+    .pricing-card.featured {
+      border-color:var(--gold); background:var(--bg3);
+      box-shadow:0 0 60px rgba(232,168,56,.15);
+    }
+    .pricing-card.featured::before {
+      content:'MOST POPULAR'; position:absolute; top:16px; right:-28px;
+      background:linear-gradient(135deg,var(--gold),#c87a1a); color:#000;
+      font-size:10px; font-weight:800; letter-spacing:1px;
+      padding:4px 36px; transform:rotate(45deg); transform-origin:center;
+    }
+    .pricing-name { font-size:13px; font-weight:700; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:16px; }
+    .pricing-price { font-family:var(--display); font-size:56px; letter-spacing:1px; line-height:1; }
+    .pricing-price sup { font-size:20px; vertical-align:top; margin-top:8px; display:inline-block; font-family:var(--font); }
+    .pricing-price sub { font-size:14px; font-family:var(--font); color:var(--text3); }
+    .pricing-desc { font-size:13px; color:var(--text2); margin:12px 0 24px; line-height:1.6; }
+    .pricing-divider { height:1px; background:var(--border); margin:20px 0; }
+    .pricing-features { list-style:none; display:flex; flex-direction:column; gap:12px; margin-bottom:28px; }
+    .pricing-features li { display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text2); }
+    .pricing-features li::before { content:'✓'; color:var(--gold); font-weight:800; flex-shrink:0; }
+    .pricing-features li.muted { color:var(--text3); }
+    .pricing-features li.muted::before { content:'—'; color:var(--text3); }
+    .btn-pricing {
+      display:block; text-align:center; padding:13px; border-radius:10px;
+      font-weight:700; font-size:14px; text-decoration:none; transition:all .2s;
+    }
+    .btn-pricing.primary { background:linear-gradient(135deg,var(--gold),#c87a1a); color:#000; box-shadow:0 4px 16px rgba(232,168,56,.3); }
+    .btn-pricing.primary:hover { box-shadow:0 8px 28px rgba(232,168,56,.45); transform:translateY(-1px); }
+    .btn-pricing.secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border2); }
+    .btn-pricing.secondary:hover { border-color:var(--gold); color:var(--gold); }
+
+    /* ── TESTIMONIALS ── */
+    #testimonials { background:var(--bg); }
+    .testi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:56px; }
+    .testi-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:28px;
+      position:relative; transition:all .2s;
+    }
+    .testi-card:hover { border-color:rgba(232,168,56,.2); transform:translateY(-3px); }
+    .testi-quote {
+      font-size:32px; color:var(--gold); opacity:.4; font-family:Georgia, serif;
+      line-height:1; margin-bottom:12px;
+    }
+    .testi-text { font-size:14px; color:var(--text2); line-height:1.8; margin-bottom:20px; }
+    .testi-author { display:flex; align-items:center; gap:12px; }
+    .testi-avatar {
+      width:40px; height:40px; border-radius:10px;
+      background:linear-gradient(135deg,var(--gold),#c87a1a);
+      display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:15px; color:#000; flex-shrink:0;
+    }
+    .testi-name { font-size:14px; font-weight:700; }
+    .testi-role { font-size:12px; color:var(--text3); }
+    .testi-stars { color:var(--gold); font-size:12px; letter-spacing:1px; margin-bottom:14px; }
+
+    /* ── FAQ ── */
+    #faq { background:var(--bg3); }
+    .faq-list { margin-top:48px; max-width:720px; }
+    .faq-item {
+      border:1px solid var(--border); border-radius:12px; margin-bottom:10px;
+      overflow:hidden; transition:border-color .2s;
+    }
+    .faq-item.open { border-color:rgba(232,168,56,.3); }
+    .faq-q {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:20px 24px; cursor:pointer; font-size:15px; font-weight:600;
+      background:var(--surface); transition:background .2s;
+    }
+    .faq-q:hover { background:var(--surface2); }
+    .faq-arrow { font-size:18px; color:var(--gold); transition:transform .3s; flex-shrink:0; margin-left:12px; }
+    .faq-item.open .faq-arrow { transform:rotate(180deg); }
+    .faq-a {
+      max-height:0; overflow:hidden; transition:max-height .4s ease, padding .3s;
+      padding:0 24px; font-size:14px; color:var(--text2); line-height:1.8;
+      background:var(--surface);
+    }
+    .faq-item.open .faq-a { max-height:300px; padding:0 24px 20px; }
+
+    /* ── CONTACT ── */
+    #contact { background:var(--bg2); }
+    .contact-grid { display:grid; grid-template-columns:1fr 1fr; gap:60px; margin-top:56px; align-items:flex-start; }
+    .contact-info { display:flex; flex-direction:column; gap:20px; }
+    .contact-item { display:flex; gap:14px; align-items:flex-start; }
+    .contact-icon {
+      width:44px; height:44px; border-radius:10px; flex-shrink:0;
+      background:var(--gold-dim); border:1px solid rgba(232,168,56,.2);
+      display:flex; align-items:center; justify-content:center; font-size:20px;
+    }
+    .contact-label { font-size:13px; color:var(--text3); margin-bottom:4px; }
+    .contact-val { font-size:15px; font-weight:600; color:var(--text); text-decoration:none; }
+    .contact-val:hover { color:var(--gold); }
+    .contact-form { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:32px; }
+    .form-group { margin-bottom:16px; }
+    .form-label { display:block; font-size:11px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text3); margin-bottom:6px; }
+    .form-input {
+      width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:9px;
+      padding:12px 14px; color:var(--text); font-size:14px; font-family:var(--font);
+      outline:none; transition:border-color .2s;
+    }
+    .form-input:focus { border-color:var(--gold); }
+    .form-input::placeholder { color:var(--text3); }
+    textarea.form-input { resize:vertical; min-height:100px; }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .form-success { display:none; text-align:center; padding:20px; color:var(--green); font-weight:600; }
+
+    /* ── CTA BAND ── */
+    #cta-band {
+      background: linear-gradient(135deg, #1a1208 0%, var(--gold-dim) 50%, #1a1208 100%);
+      border-top:1px solid rgba(232,168,56,.2); border-bottom:1px solid rgba(232,168,56,.2);
+      padding:80px 5%; text-align:center; position:relative; overflow:hidden;
+    }
+    #cta-band::before {
+      content:''; position:absolute; inset:0;
+      background:radial-gradient(ellipse 60% 80% at 50% 50%, rgba(232,168,56,.08), transparent);
+    }
+    .cta-h2 { font-family:var(--display); font-size:clamp(40px,6vw,80px); letter-spacing:2px; margin-bottom:16px; }
+    .cta-sub { font-size:17px; color:var(--text2); margin-bottom:36px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background:var(--bg); border-top:1px solid var(--border);
+      padding:60px 5% 32px;
+    }
+    .footer-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:40px; margin-bottom:48px; }
+    .footer-brand p { font-size:14px; color:var(--text3); line-height:1.7; margin:12px 0 20px; max-width:260px; }
+    .footer-col h4 { font-size:13px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--text3); margin-bottom:16px; }
+    .footer-col a { display:block; color:var(--text3); text-decoration:none; font-size:13px; margin-bottom:10px; transition:color .2s; }
+    .footer-col a:hover { color:var(--gold); }
+    .footer-bottom { border-top:1px solid var(--border); padding-top:24px; display:flex; justify-content:space-between; align-items:center; }
+    .footer-copy { font-size:12px; color:var(--text3); }
+    .footer-links { display:flex; gap:20px; }
+    .footer-links a { font-size:12px; color:var(--text3); text-decoration:none; }
+    .footer-links a:hover { color:var(--gold); }
+
+    /* ── WHATSAPP FLOAT ── */
+    .wa-float {
+      position:fixed; bottom:28px; right:28px; z-index:99;
+      width:56px; height:56px; border-radius:50%;
+      background:#25D366; display:flex; align-items:center; justify-content:center;
+      box-shadow:0 8px 24px rgba(37,211,102,.4); text-decoration:none;
+      transition:all .2s; animation:float 3s ease-in-out infinite;
+    }
+    .wa-float:hover { transform:scale(1.1); box-shadow:0 12px 32px rgba(37,211,102,.6); }
+
+    /* ── MOBILE ── */
+    @media(max-width:768px){
+      .nav-links,.nav-cta{display:none;}
+      .hamburger{display:flex;}
+      .mobile-menu {
+        position:fixed; inset:0; z-index:99; background:rgba(6,8,16,.98);
+        display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+        opacity:0; pointer-events:none; transition:opacity .3s;
+      }
+      .mobile-menu.open{opacity:1;pointer-events:all;}
+      .mobile-menu a{font-size:24px;color:var(--text);text-decoration:none;font-family:var(--display);letter-spacing:2px;}
+      .mobile-menu .btn-primary{font-size:18px;padding:16px 40px;}
+      .stats-bar{grid-template-columns:repeat(2,1fr);}
+      .stat-item:nth-child(2){border-right:none;}
+      .features-grid{grid-template-columns:1fr;}
+      .why-grid{grid-template-columns:1fr;}
+      .pricing-grid{grid-template-columns:1fr;}
+      .testi-grid{grid-template-columns:1fr;}
+      .contact-grid{grid-template-columns:1fr;}
+      .footer-grid{grid-template-columns:1fr 1fr;}
+      .demo-screen{grid-template-columns:1fr;}
+      .demo-sidebar{display:none;}
+      .footer-bottom{flex-direction:column;gap:12px;text-align:center;}
+      .hero-actions{flex-direction:column;}
+      .form-row{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="navbar">
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="9" y1="7" x2="15" y2="7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="9" y1="11" x2="15" y2="11" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <span class="nav-logo-text">LIBRARYDESK</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#why">Why Us</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#testimonials">Reviews</a>
+    <a href="#faq">FAQ</a>
+    <a href="#contact">Contact</a>
+  </div>
+  <div class="nav-cta">
+    <a href="https://app.librarydesk.in" class="btn-nav-login">Sign In</a>
+    <a href="https://app.librarydesk.in" class="btn-nav-signup">Start Free Trial →</a>
+  </div>
+  <div class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features" onclick="closeMobile()">Features</a>
+  <a href="#pricing" onclick="closeMobile()">Pricing</a>
+  <a href="#testimonials" onclick="closeMobile()">Reviews</a>
+  <a href="#contact" onclick="closeMobile()">Contact</a>
+  <a href="https://app.librarydesk.in" class="btn-primary">Start Free Trial →</a>
+</div>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-badge">
+    <div class="hero-badge-dot"></div>
+    <span>🇮🇳 Made for Indian Libraries</span>
+  </div>
+  <h1 class="hero-h1">
+    Run Your Library<br/>
+    <span>Like a Pro</span>
+  </h1>
+  <p class="hero-sub">
+    LibraryDesk is India's smartest library management software. 
+    Manage students, seats, subscriptions, payments and reminders — 
+    all from one beautiful dashboard.
+  </p>
+  <div class="hero-actions">
+    <a href="https://app.librarydesk.in" class="btn-primary">
+      🚀 Start Free for 14 Days
+    </a>
+    <a href="#demo" class="btn-secondary">
+      See how it works ↓
+    </a>
+  </div>
+  <p class="hero-trial">No credit card required · <span>14 days free</span> · Cancel anytime</p>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num" data-target="500">0</div>
+    <div class="stat-label">Libraries Using LibraryDesk</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="50000">0</div>
+    <div class="stat-label">Students Managed</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="99">0</div>
+    <div class="stat-label">% Uptime Guaranteed</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num" data-target="14">0</div>
+    <div class="stat-label">Days Free Trial</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-tag">Features</div>
+      <h2 class="section-h2">Everything You Need to<br/><em>Manage Your Library</em></h2>
+      <p class="section-sub">From student registration to seat management — LibraryDesk covers every part of running a library.</p>
+    </div>
+    <div class="features-grid fade-up">
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Student Management</div>
+        <div class="feature-desc">Register students with photos and ID proof. Track joining dates, contact details and subscription history in one place.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🪑</div>
+        <div class="feature-title">Visual Seat Map</div>
+        <div class="feature-desc">See your entire library at a glance. Color-coded seats show availability, occupancy and shift bookings in real-time.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Subscription Plans</div>
+        <div class="feature-desc">Create custom plans by duration and shifts. Monthly, quarterly, annual — with UPI, cash and card payment tracking.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⏰</div>
+        <div class="feature-title">Shift Management</div>
+        <div class="feature-desc">Define morning, evening and full-day shifts. Block double-booking automatically and track usage per shift.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔔</div>
+        <div class="feature-title">Smart Reminders</div>
+        <div class="feature-desc">Auto-create renewal reminders. Get alerts before subscriptions expire and send WhatsApp messages with one click.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <div class="feature-title">WhatsApp Integration</div>
+        <div class="feature-desc">Send renewal reminders, payment alerts and custom messages to students directly via WhatsApp — built right in.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Revenue Reports</div>
+        <div class="feature-desc">Monthly revenue charts, plan-wise breakdown, expense tracking and profit/loss reports — all downloadable.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💸</div>
+        <div class="feature-title">Expense Tracking</div>
+        <div class="feature-desc">Log electricity, rent, maintenance and other expenses. See your net profit month by month with beautiful charts.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📣</div>
+        <div class="feature-title">Marketing Tools</div>
+        <div class="feature-desc">Filter students by shift or expiry status, compose bulk WhatsApp messages and send them in one click.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo">
+  <div class="section-inner">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-tag">Live Preview</div>
+      <h2 class="section-h2">See <em>LibraryDesk</em> in Action</h2>
+      <p class="section-sub" style="margin:0 auto">A clean, fast and intuitive dashboard your staff will love from day one.</p>
+    </div>
+    <div class="demo-window fade-up">
+      <div class="demo-titlebar">
+        <div class="demo-dot" style="background:#ef4444"></div>
+        <div class="demo-dot" style="background:#f59e0b"></div>
+        <div class="demo-dot" style="background:#22c55e"></div>
+        <div class="demo-url">app.librarydesk.in/dashboard</div>
+      </div>
+      <div class="demo-screen">
+        <div class="demo-sidebar">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:16px;">
+            <div style="width:28px;height:28px;background:linear-gradient(135deg,#e8a838,#c87a1a);border-radius:7px;display:flex;align-items:center;justify-content:center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" stroke-width="2"/></svg>
+            </div>
+            <span style="font-size:11px;font-weight:800;letter-spacing:2px;color:#e8a838;">LIBRA</span>
+          </div>
+          <div class="demo-nav-item active"><div class="demo-nav-dot"></div>Dashboard</div>
+          <div class="demo-nav-item"><div class="demo-nav-dot"></div>Students</div>
+          <div class="demo-nav-item"><div class="demo-nav-dot"></div>Subscriptions</div>
+          <div class="demo-nav-item"><div class="demo-nav-dot"></div>Seat Map</div>
+          <div class="demo-nav-item"><div class="demo-nav-dot"></div>Reminders</div>
+          <div class="demo-nav-item"><div class="demo-nav-dot"></div>Reports</div>
+        </div>
+        <div class="demo-content">
+          <div style="font-size:11px;color:#4a5578;margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Dashboard Overview</div>
+          <div class="demo-stats">
+            <div class="demo-stat"><div class="demo-stat-val">142</div><div class="demo-stat-label">Active Students</div></div>
+            <div class="demo-stat"><div class="demo-stat-val">₹82k</div><div class="demo-stat-label">Monthly Revenue</div></div>
+            <div class="demo-stat"><div class="demo-stat-val">38/50</div><div class="demo-stat-label">Seats Occupied</div></div>
+          </div>
+          <div class="demo-table">
+            <div class="demo-th">
+              <span>Student</span><span>Plan</span><span>Expires</span><span>Status</span>
+            </div>
+            <div class="demo-row">
+              <span>Rahul Sharma</span><span>Monthly</span><span>12 Dec</span>
+              <span class="demo-badge green">Active</span>
+            </div>
+            <div class="demo-row">
+              <span>Priya Singh</span><span>Annual</span><span>Mar 2025</span>
+              <span class="demo-badge green">Active</span>
+            </div>
+            <div class="demo-row">
+              <span>Amit Kumar</span><span>Monthly</span><span>3 days</span>
+              <span class="demo-badge yellow">Expiring</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY CHOOSE US -->
+<section id="why">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-tag">Why LibraryDesk</div>
+      <h2 class="section-h2">Built for <em>Indian Libraries</em><br/>by Indians</h2>
+      <p class="section-sub">We understand how Indian libraries work — and built every feature around that.</p>
+    </div>
+    <div class="why-grid fade-up">
+      <div class="why-list">
+        <div class="why-item">
+          <div class="why-icon">🇮🇳</div>
+          <div><div class="why-title">Made for India</div><div class="why-desc">Supports ₹ currency, UPI payments, WhatsApp communication and Indian date formats out of the box.</div></div>
+        </div>
+        <div class="why-item">
+          <div class="why-icon">⚡</div>
+          <div><div class="why-title">Lightning Fast</div><div class="why-desc">Loads in under 2 seconds. Works on any device — desktop, tablet or mobile. No app installation needed.</div></div>
+        </div>
+        <div class="why-item">
+          <div class="why-icon">🔒</div>
+          <div><div class="why-title">Secure & Private</div><div class="why-desc">Your data is yours. Hosted on enterprise-grade infrastructure with daily backups and SSL encryption.</div></div>
+        </div>
+        <div class="why-item">
+          <div class="why-icon">🎯</div>
+          <div><div class="why-title">Zero Learning Curve</div><div class="why-desc">Intuitive design your staff can use from day one. No training required — just sign up and start.</div></div>
+        </div>
+      </div>
+      <div class="why-visual">
+        <div class="why-card">
+          <div class="why-card-glow"></div>
+          <div class="why-card-title">Average time saved per day</div>
+          <div class="why-card-val">2.5 hrs</div>
+          <div class="why-progress"><div class="why-progress-fill" style="width:83%"></div></div>
+          <div style="font-size:11px;color:#4a5578;margin-top:6px;">vs manual register management</div>
+        </div>
+        <div class="why-card">
+          <div class="why-card-glow"></div>
+          <div class="why-card-title">Renewal collection rate</div>
+          <div class="why-card-val">94%</div>
+          <div class="why-progress"><div class="why-progress-fill" style="width:94%"></div></div>
+          <div style="font-size:11px;color:#4a5578;margin-top:6px;">with automated WhatsApp reminders</div>
+        </div>
+        <div class="why-card">
+          <div class="why-card-glow"></div>
+          <div class="why-card-title">Libraries rate us</div>
+          <div class="why-card-val">4.9 / 5 ⭐</div>
+          <div class="why-progress"><div class="why-progress-fill" style="width:98%"></div></div>
+          <div style="font-size:11px;color:#4a5578;margin-top:6px;">based on 200+ reviews</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="section-inner">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-tag">Pricing</div>
+      <h2 class="section-h2">Simple, <em>Honest Pricing</em></h2>
+      <p class="section-sub" style="margin:0 auto">No hidden fees. No per-student charges. One flat price for unlimited everything.</p>
+    </div>
+    <div class="pricing-grid fade-up">
+      <!-- Trial -->
+      <div class="pricing-card">
+        <div class="pricing-name">Free Trial</div>
+        <div class="pricing-price"><sup>₹</sup>0<sub>/14 days</sub></div>
+        <div class="pricing-desc">Full access to every feature. No credit card needed. See if LibraryDesk is right for you.</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>Unlimited students</li>
+          <li>All features included</li>
+          <li>Seat map & shifts</li>
+          <li>WhatsApp reminders</li>
+          <li>Email support</li>
+          <li class="muted">Priority support</li>
+        </ul>
+        <a href="https://app.librarydesk.in" class="btn-pricing secondary">Start Free Trial</a>
+      </div>
+      <!-- Monthly -->
+      <div class="pricing-card featured">
+        <div class="pricing-name">Monthly Plan</div>
+        <div class="pricing-price" style="color:var(--gold)"><sup>₹</sup>1,000<sub>/month</sub></div>
+        <div class="pricing-desc">Everything you need to run a professional library. Billed monthly, cancel anytime.</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>Unlimited students</li>
+          <li>All features included</li>
+          <li>Seat map & shifts</li>
+          <li>WhatsApp reminders</li>
+          <li>Marketing tools</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="https://app.librarydesk.in" class="btn-pricing primary">Get Started → </a>
+      </div>
+      <!-- Annual -->
+      <div class="pricing-card">
+        <div class="pricing-name">Annual Plan</div>
+        <div class="pricing-price"><sup>₹</sup>9,000<sub>/year</sub></div>
+        <div class="pricing-desc">Save ₹3,000 vs monthly. Best value for established libraries. Billed once a year.</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>Everything in Monthly</li>
+          <li>Save ₹3,000/year</li>
+          <li>Dedicated support</li>
+          <li>Setup assistance</li>
+          <li>Priority features</li>
+          <li>Invoice & GST receipt</li>
+        </ul>
+        <a href="https://app.librarydesk.in" class="btn-pricing secondary">Get Annual Plan</a>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:28px;font-size:13px;color:var(--text3);">
+      🎉 Use code <span style="font-family:var(--mono);background:var(--gold-dim);color:var(--gold);padding:2px 8px;border-radius:5px;font-weight:700;">LAUNCH50</span> for 50% off your first month
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="section-inner">
+    <div class="fade-up" style="text-align:center">
+      <div class="section-tag">Testimonials</div>
+      <h2 class="section-h2">Library Owners <em>Love It</em></h2>
+      <p class="section-sub" style="margin:0 auto">Join hundreds of library owners who've transformed how they run their business.</p>
+    </div>
+    <div class="testi-grid fade-up">
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">LibraryDesk has completely changed how I manage my library. The seat map alone saves me 1 hour every day. Renewal reminders mean I never miss a payment anymore.</div>
+        <div class="testi-author">
+          <div class="testi-avatar">R</div>
+          <div><div class="testi-name">Rajesh Gupta</div><div class="testi-role">Gupta Study Centre, Lucknow</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">I was using a notebook before. Now everything is digital — students, fees, seats. WhatsApp reminders are the best feature. My collection rate went from 70% to 95%.</div>
+        <div class="testi-author">
+          <div class="testi-avatar">P</div>
+          <div><div class="testi-name">Pradeep Verma</div><div class="testi-role">Vidya Library, Patna</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">The reports feature is amazing. I can see exactly how much revenue I made each month, which plans are popular, and where I'm spending money. Very professional software.</div>
+        <div class="testi-author">
+          <div class="testi-avatar">S</div>
+          <div><div class="testi-name">Sunita Sharma</div><div class="testi-role">Success Library, Jaipur</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">Very easy to use. My staff learned it in one day. Customer support is excellent — they respond on WhatsApp within minutes. Best investment for my library.</div>
+        <div class="testi-author">
+          <div class="testi-avatar">A</div>
+          <div><div class="testi-name">Amit Pandey</div><div class="testi-role">Knowledge Hub, Kanpur</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">I manage 3 library branches and LibraryDesk keeps everything organised. The shift management and seat booking system is exactly what I needed for my setup.</div>
+        <div class="testi-author">
+          <div class="testi-avatar">M</div>
+          <div><div class="testi-name">Mohan Das</div><div class="testi-role">MD Study Rooms, Varanasi</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <div class="testi-quote">"</div>
+        <div class="testi-text">₹1000 per month is nothing compared to what I was wasting on confusion and missed payments. The software pays for itself 10x every month. Highly recommended!</div>
+        <div class="testi-author">
+          <div class="testi-avatar">N</div>
+          <div><div class="testi-name">Neha Srivastava</div><div class="testi-role">Career Point Library, Allahabad</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-tag">FAQ</div>
+      <h2 class="section-h2">Got <em>Questions?</em></h2>
+    </div>
+    <div class="faq-list fade-up">
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>Is my data safe? Where is it stored?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">Your data is stored on enterprise-grade servers with daily automatic backups. All data is encrypted in transit and at rest. We never share your data with anyone. Even if you cancel, your data is kept safely for 30 days before permanent deletion.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>Can I use it on my mobile phone?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">Yes! LibraryDesk is fully responsive and works on any device — desktop, tablet or mobile. No app download needed. Just open your browser and go to app.librarydesk.in. It works perfectly on Chrome, Safari and any modern browser.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>How many students and seats can I add?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">Unlimited. There are no per-student or per-seat charges. Whether you have 50 students or 500 students, the price is the same flat ₹1000/month. We believe in simple, honest pricing.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>What payment methods can I record for my students?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">You can record payments made via Cash, UPI, Card, Net Banking, Cheque and more. LibraryDesk tracks payment mode per subscription so your accounts are always accurate. We currently support manual payment recording with Razorpay online payment coming soon.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>Can I cancel my subscription anytime?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">Absolutely. No lock-in, no cancellation fees. You can cancel anytime from your account settings. Your data remains accessible until the end of your billing period. We think you'll love LibraryDesk, but we never hold you hostage.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>Do you offer support in Hindi?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">Yes! Our support team is fluent in Hindi and English. You can reach us on WhatsApp, email or through the contact form on this page. We typically respond within a few hours on working days.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          <span>What happens after my 14-day trial ends?</span>
+          <span class="faq-arrow">↓</span>
+        </div>
+        <div class="faq-a">After the trial, your account switches to read-only mode — you can still view all your data but won't be able to add new students or subscriptions. Simply upgrade to the Monthly or Annual plan to continue with full access. Your data is never deleted.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BAND -->
+<section id="cta-band">
+  <div style="position:relative;z-index:1;text-align:center">
+    <div class="section-tag fade-up">Get Started Today</div>
+    <h2 class="cta-h2 fade-up">Your Library Deserves<br/>Better Software</h2>
+    <p class="cta-sub fade-up">Join 500+ library owners who trust LibraryDesk.<br/>Start your free 14-day trial — no credit card required.</p>
+    <div class="hero-actions fade-up">
+      <a href="https://app.librarydesk.in" class="btn-primary" style="font-size:17px;padding:16px 40px;">
+        🚀 Start Free Trial Now
+      </a>
+      <a href="https://wa.me/919999999999?text=Hi, I want to know more about LibraryDesk" class="btn-secondary" style="font-size:17px;padding:15px 36px;">
+        💬 Chat on WhatsApp
+      </a>
+    </div>
+    <p style="font-size:13px;color:var(--text3);margin-top:20px;">14 days free · No credit card · Cancel anytime</p>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact">
+  <div class="section-inner">
+    <div class="fade-up">
+      <div class="section-tag">Contact</div>
+      <h2 class="section-h2">We're Here to <em>Help</em></h2>
+      <p class="section-sub">Have questions? Reach out on WhatsApp, email or fill the form. We reply fast.</p>
+    </div>
+    <div class="contact-grid fade-up">
+      <div class="contact-info">
+        <div class="contact-item">
+          <div class="contact-icon">💬</div>
+          <div>
+            <div class="contact-label">WhatsApp (Fastest Response)</div>
+            <a href="https://wa.me/919999999999" class="contact-val">+91 99999 99999</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">📧</div>
+          <div>
+            <div class="contact-label">Email</div>
+            <a href="mailto:support@librarydesk.in" class="contact-val">support@librarydesk.in</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🌐</div>
+          <div>
+            <div class="contact-label">App URL</div>
+            <a href="https://app.librarydesk.in" class="contact-val">app.librarydesk.in</a>
+          </div>
+        </div>
+        <div class="contact-item">
+          <div class="contact-icon">🕐</div>
+          <div>
+            <div class="contact-label">Support Hours</div>
+            <div class="contact-val" style="font-size:14px;font-weight:500;">Mon–Sat, 9am–7pm IST</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;padding:20px;background:var(--gold-dim);border:1px solid rgba(232,168,56,.2);border-radius:12px;">
+          <div style="font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;">🎯 Free Setup Assistance</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.6;">Sign up and we'll personally help you set up shifts, plans and import your existing student data — for free.</div>
+        </div>
+      </div>
+      <div class="contact-form">
+        <div id="formSuccess" class="form-success">✅ Message sent! We'll reply within a few hours.</div>
+        <div id="formFields">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Your Name</label><input class="form-input" type="text" id="fname" placeholder="Rajesh Kumar"/></div>
+            <div class="form-group"><label class="form-label">Phone / WhatsApp</label><input class="form-input" type="tel" id="fphone" placeholder="+91 98765 43210"/></div>
+          </div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="femail" placeholder="you@gmail.com"/></div>
+          <div class="form-group"><label class="form-label">Library Name</label><input class="form-input" type="text" id="flibrary" placeholder="Your Library Name"/></div>
+          <div class="form-group"><label class="form-label">Message</label><textarea class="form-input" id="fmessage" placeholder="Tell us about your library or what you'd like to know…"></textarea></div>
+          <button class="btn-primary" style="width:100%;justify-content:center;font-size:15px;" onclick="submitForm()">Send Message →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a class="nav-logo" href="#" style="display:inline-flex;margin-bottom:4px;">
+        <div class="nav-logo-icon" style="width:30px;height:30px;border-radius:7px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" stroke-width="2"/></svg>
+        </div>
+        <span class="nav-logo-text" style="font-size:18px;">LIBRARYDESK</span>
+      </a>
+      <p>India's smartest library management software. Built for library owners who want to run a professional, profitable business.</p>
+      <div style="display:flex;gap:10px;">
+        <a href="https://wa.me/919999999999" style="width:34px;height:34px;background:#25D366;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;text-decoration:none;">💬</a>
+        <a href="mailto:support@librarydesk.in" style="width:34px;height:34px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;text-decoration:none;">📧</a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Product</h4>
+      <a href="#features">Features</a>
+      <a href="#demo">Demo</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://app.librarydesk.in">Login</a>
+      <a href="https://app.librarydesk.in">Sign Up Free</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="#why">About Us</a>
+      <a href="#contact">Contact</a>
+      <a href="#faq">FAQ</a>
+      <a href="mailto:support@librarydesk.in">Support</a>
+    </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+      <a href="#">Refund Policy</a>
+      <a href="#">Cookie Policy</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2025 LibraryDesk. All rights reserved. Made with ❤️ in India 🇮🇳</div>
+    <div class="footer-links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#contact">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<!-- WHATSAPP FLOAT -->
+<a href="https://wa.me/919999999999?text=Hi, I want to know more about LibraryDesk" class="wa-float" target="_blank" title="Chat on WhatsApp">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+</a>
+
+<script>
+  // ── NAVBAR SCROLL ──
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // ── MOBILE MENU ──
+  const hamburger = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
+  hamburger.addEventListener('click', () => mobileMenu.classList.toggle('open'));
+  function closeMobile() { mobileMenu.classList.remove('open'); }
+
+  // ── COUNTER ANIMATION ──
+  function animateCounter(el, target) {
+    let start = 0;
+    const duration = 1800;
+    const step = timestamp => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const val = Math.floor(eased * target);
+      el.textContent = val >= 1000 ? (val/1000).toFixed(0) + 'K+' : val + (target === 99 ? '%' : target === 14 ? ' Days' : '+');
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  const statsObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        document.querySelectorAll('.stat-num[data-target]').forEach(el => {
+          animateCounter(el, parseInt(el.dataset.target));
+          el.removeAttribute('data-target');
+        });
+        statsObs.disconnect();
+      }
+    });
+  }, { threshold: 0.5 });
+  statsObs.observe(document.querySelector('.stats-bar'));
+
+  // ── SCROLL ANIMATIONS ──
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
+  document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+
+  // ── FAQ ──
+  function toggleFaq(el) {
+    const item = el.parentElement;
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // ── CONTACT FORM ──
+  function submitForm() {
+    const name    = document.getElementById('fname').value.trim();
+    const phone   = document.getElementById('fphone').value.trim();
+    const email   = document.getElementById('femail').value.trim();
+    const library = document.getElementById('flibrary').value.trim();
+    const message = document.getElementById('fmessage').value.trim();
+    if (!name || !phone) { alert('Please enter your name and phone number.'); return; }
+    // Send via WhatsApp
+    const text = `Hi LibraryDesk Team!%0A%0AName: ${name}%0APhone: ${phone}%0AEmail: ${email}%0ALibrary: ${library}%0A%0AMessage: ${message}`;
+    window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+    document.getElementById('formFields').style.display = 'none';
+    document.getElementById('formSuccess').style.display = 'block';
+  }
+
+  // ── SMOOTH SCROLL ──
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (el) { e.preventDefault(); el.scrollIntoView({ behavior:'smooth', block:'start' }); }
+    });
+  });
+</script>
+</body>
+</html>
