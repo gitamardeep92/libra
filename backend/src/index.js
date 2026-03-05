@@ -3,14 +3,15 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 
-const authRouter = require('./routes/auth');
-const apiRouter  = require('./routes/api');
+const authRouter  = require('./routes/auth');
+const apiRouter   = require('./routes/api');
+const adminRouter = require('./routes/admin');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:5174')
   .split(',')
   .map(s => s.trim());
 
@@ -32,8 +33,9 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRouter);
-app.use('/api',      apiRouter);
+app.use('/api/auth',  authRouter);
+app.use('/api',       apiRouter);
+app.use('/api/admin', adminRouter);
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
