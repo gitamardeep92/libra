@@ -885,7 +885,6 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
     {id:"marketing",icon:"megaphone",label:"Marketing",section:"tools"},
     {id:"settings",icon:"settings",label:"Settings",section:"tools"},
     {id:"billing",icon:"payment",label:"Billing & Plans",section:"tools"},
-    {id:"billing",icon:"key",label:"Billing",section:"tools"},
   ];
   return(
     <>
@@ -1734,7 +1733,6 @@ export default function App() {
             {page==="reports"&&<Reports data={data}/>}
             {page==="marketing"&&<Marketing data={data} library={library}/>}
             {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
-            {page==="billing"&&<Billing library={library}/>}
             {page==="billing"&&<Billing library={library}/>}
           </div>
         </main>
