@@ -500,6 +500,8 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
 
 // ─── MARKETING PAGE ───────────────────────────────────────────────────────────
 function Marketing({ data, library }) {
+  const UNSPLASH_KEY = "P1poBnN8UBe3bRPLeB5Vo5bPmvbAp4IiW7PJHM8KSWI";
+  const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | social
   const [selectedShifts, setSelectedShifts] = useState([]);
   const [statusFilter, setStatusFilter]     = useState("active"); // active | expiring | all
   const [msgTemplate, setMsgTemplate]       = useState("custom");
@@ -547,11 +549,175 @@ function Marketing({ data, library }) {
     });
   };
 
+  // ── Social Post state ──
+  const [caption, setCaption]       = useState("");
+  const [images, setImages]         = useState([]);
+  const [selImg, setSelImg]         = useState(null);
+  const [imgQuery, setImgQuery]     = useState("library study students");
+  const [imgLoading, setImgLoading] = useState(false);
+  const [fbPage, setFbPage]         = useState(localStorage.getItem("lib_fb_page")||"");
+  const [igHandle, setIgHandle]     = useState(localStorage.getItem("lib_ig_handle")||"");
+  const [socialSaved, setSocialSaved] = useState(false);
+
+  const fetchImages = async (q) => {
+    setImgLoading(true);
+    try {
+      const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=12&orientation=landscape&client_id=${UNSPLASH_KEY}`);
+      const d = await r.json();
+      setImages(d.results||[]);
+      if(d.results?.length) setSelImg(d.results[0]);
+    } catch(e){} finally { setImgLoading(false); }
+  };
+
+  useEffect(()=>{ if(mainTab==="social" && images.length===0) fetchImages(imgQuery); },[mainTab]);
+
+  const shareToFacebook = () => {
+    if(fbPage) window.open(`https://www.facebook.com/${fbPage}`,"_blank");
+    else window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://www.librarydesk.in")}&quote=${encodeURIComponent(caption)}`,"_blank");
+  };
+  const shareToInstagram = () => {
+    navigator.clipboard.writeText(caption).then(()=>{
+      window.open(igHandle?`https://www.instagram.com/${igHandle.replace("@","")}`:"https://www.instagram.com/","_blank");
+      alert("Caption copied! Open Instagram, create a post, upload the image and paste the caption.");
+    });
+  };
+  const downloadPost = () => {
+    if(!selImg) return;
+    const a=document.createElement("a"); a.href=selImg.urls.full+"&dl=1"; a.download="post-image.jpg"; a.target="_blank"; a.click();
+    navigator.clipboard.writeText(caption);
+    alert("Image downloading + caption copied to clipboard!");
+  };
+
   return (
     <div>
       <div className="page-header">
-        <div className="page-header-left"><h1>Marketing</h1><p>Send WhatsApp messages to students</p></div>
+        <div className="page-header-left"><h1>Marketing</h1><p>WhatsApp blasts & social media posts</p></div>
       </div>
+
+      {/* Main tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)"}}>
+        {[["whatsapp","💬 WhatsApp Blast"],["social","📸 Social Media Post"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setMainTab(id)} style={{
+            padding:"10px 20px",background:mainTab===id?"var(--accent-dim)":"transparent",
+            color:mainTab===id?"var(--accent2)":"var(--text3)",
+            border:"none",borderRadius:"8px 8px 0 0",cursor:"pointer",fontWeight:600,fontSize:13,
+            borderBottom:mainTab===id?"2px solid var(--accent)":"2px solid transparent",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ══ SOCIAL MEDIA TAB ══ */}
+      {mainTab==="social" && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16,alignItems:"start"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {/* Caption */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>✍️ Caption</div>
+              <textarea className="input" rows={5}
+                placeholder={`Write your post...
+
+📚 Seats available at ${library?.library_name}!
+🕐 Morning, Evening & Full-day shifts
+💰 Affordable monthly plans
+📞 Contact us to book your seat
+#library #study #${library?.city||"india"}`}
+                value={caption} onChange={e=>setCaption(e.target.value)}
+                style={{resize:"vertical",lineHeight:1.7}}/>
+              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                {["📚 Seats Available","🎯 Limited Seats Left","💸 Special Offer","🏆 Success Story","📅 New Batch Starting"].map(t=>(
+                  <button key={t} className="btn btn-secondary btn-sm" onClick={()=>setCaption(c=>c+(c?"
+":"")+t)}>{t}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Image picker */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>🖼️ Free Images (Unsplash)</div>
+              <form onSubmit={e=>{e.preventDefault();fetchImages(imgQuery);}} style={{display:"flex",gap:8,marginBottom:12}}>
+                <input className="input" style={{flex:1}} placeholder="Search: library, study, books, students…"
+                  value={imgQuery} onChange={e=>setImgQuery(e.target.value)}/>
+                <button className="btn btn-primary" type="submit">Search</button>
+              </form>
+              {imgLoading ? <div style={{textAlign:"center",padding:20}}><Spinner size={24}/></div> : (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {images.map(img=>(
+                    <div key={img.id} onClick={()=>setSelImg(img)} style={{
+                      borderRadius:7,overflow:"hidden",cursor:"pointer",aspectRatio:"16/9",
+                      border:`2px solid ${selImg?.id===img.id?"var(--accent)":"transparent"}`,transition:"border .15s",
+                    }}>
+                      <img src={img.urls.small} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selImg && <div style={{marginTop:6,fontSize:11,color:"var(--text3)"}}>Photo by <a href={selImg.user.links.html+"?utm_source=librarydesk&utm_medium=referral"} target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>{selImg.user.name}</a> on Unsplash</div>}
+            </div>
+
+            {/* Share buttons */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>🚀 Share</div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                <button className="btn btn-primary" onClick={shareToFacebook}
+                  style={{background:"#1877F2",borderColor:"#1877F2",gap:8,flex:1}}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                  Post to Facebook
+                </button>
+                <button className="btn btn-primary" onClick={shareToInstagram}
+                  style={{background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",border:"none",gap:8,flex:1}}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                  Copy & Open Instagram
+                </button>
+                <button className="btn btn-secondary" onClick={downloadPost} style={{gap:6}}>⬇️ Download</button>
+              </div>
+              <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+                <div className="form-group" style={{flex:1,marginBottom:0}}>
+                  <label className="label">Facebook Page</label>
+                  <input className="input" placeholder="YourPageName" value={fbPage} onChange={e=>setFbPage(e.target.value)}/>
+                </div>
+                <div className="form-group" style={{flex:1,marginBottom:0}}>
+                  <label className="label">Instagram Handle</label>
+                  <input className="input" placeholder="@yourlibrary" value={igHandle} onChange={e=>setIgHandle(e.target.value)}/>
+                </div>
+                <button className="btn btn-secondary" style={{alignSelf:"flex-end"}} onClick={()=>{
+                  localStorage.setItem("lib_fb_page",fbPage);
+                  localStorage.setItem("lib_ig_handle",igHandle);
+                  setSocialSaved(true); setTimeout(()=>setSocialSaved(false),2000);
+                }}>{socialSaved?"✅ Saved":"Save"}</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div style={{position:"sticky",top:16}}>
+            <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid var(--border2)"}}>
+              <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(45deg,var(--accent),var(--accent2))",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:800,fontSize:12}}>
+                  {library?.library_name?.[0]||"L"}
+                </div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:12}}>{library?.library_name||"Your Library"}</div>
+                  <div style={{fontSize:10,color:"var(--text3)"}}>Sponsored</div>
+                </div>
+              </div>
+              {selImg
+                ? <img src={selImg.urls.regular} alt="" style={{width:"100%",aspectRatio:"1/1",objectFit:"cover"}}/>
+                : <div style={{width:"100%",aspectRatio:"1/1",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8,color:"var(--text3)"}}><span style={{fontSize:32}}>🖼️</span><span style={{fontSize:12}}>Pick an image</span></div>
+              }
+              <div style={{padding:"10px 14px"}}>
+                <div style={{display:"flex",gap:12,marginBottom:8,fontSize:18}}>❤️ 💬 📤 <span style={{marginLeft:"auto"}}>🔖</span></div>
+                <div style={{fontSize:12,lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:100,overflow:"hidden",color:"var(--text2)"}}>
+                  {caption||<span style={{color:"var(--text3)"}}>Caption appears here…</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{marginTop:6,fontSize:11,color:"var(--text3)",textAlign:"center"}}>Post Preview</div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ WHATSAPP TAB ══ */}
+      {mainTab==="whatsapp" && (<>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         {/* Filters */}
@@ -659,6 +825,7 @@ function Marketing({ data, library }) {
           <div className="empty-sub">Adjust the shift or status filters above</div>
         </div></div>
       )}
+      </>)}
     </div>
   );
 }

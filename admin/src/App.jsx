@@ -229,6 +229,7 @@ const Icon = ({ name, size=16, color="currentColor" }) => {
     search: <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
     check:  <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
     warn:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    marketing: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
     plan:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
     link:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>,
   };
@@ -731,209 +732,454 @@ function Coupons() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TOOLS
 // ══════════════════════════════════════════════════════════════════════════════
-function Tools() {
-  const [expiring, setExpiring]   = useState([]);
-  const [neverPaid, setNeverPaid] = useState([]);
-  const [revenue, setRevenue]     = useState(null);
-  const [notes, setNotes]         = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [extendModal, setExtendModal] = useState(null);
-  const [extendDays, setExtendDays]   = useState("30");
-  const [extendSaving, setExtendSaving] = useState(false);
-  const [newNote, setNewNote]     = useState("");
-  const [expiryDays, setExpiryDays] = useState(7);
-  const [success, setSuccess]     = useState("");
+function Marketing() {
+  const UNSPLASH_KEY = "P1poBnN8UBe3bRPLeB5Vo5bPmvbAp4IiW7PJHM8KSWI";
+  const WA_ME = "917844913738";
 
-  const load = async () => {
-    setLoading(true);
+  // tabs
+  const [tab, setTab] = useState("post"); // post | whatsapp | connect
+
+  // ── Post Composer ──
+  const [caption, setCaption]     = useState("");
+  const [images, setImages]       = useState([]);
+  const [selImg, setSelImg]       = useState(null);
+  const [imgQuery, setImgQuery]   = useState("library study");
+  const [imgLoading, setImgLoading] = useState(false);
+  const [platform, setPlatform]   = useState("both");
+
+  // ── WA Blast ──
+  const [waMsg, setWaMsg]         = useState("");
+  const [waAudience, setWaAudience] = useState("all");
+  const [libraries, setLibraries] = useState([]);
+  const [sending, setSending]     = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+  const [waStep, setWaStep]       = useState("compose"); // compose | preview | sending | done
+
+  // ── Connect ──
+  const [fbPage, setFbPage]       = useState(localStorage.getItem("ld_fb_page")||"");
+  const [igHandle, setIgHandle]   = useState(localStorage.getItem("ld_ig_handle")||"");
+  const [saved, setSaved]         = useState(false);
+
+  useEffect(()=>{
+    fetchImages("library study");
+    api.libraries({ limit:200 }).then(r=>setLibraries(r.libraries||[])).catch(()=>{});
+  },[]);
+
+  const fetchImages = async (q) => {
+    setImgLoading(true);
     try {
-      const [e, n, r, no] = await Promise.all([
-        api.tools.expiring(expiryDays),
-        api.tools.neverPaid(),
-        api.tools.revenue(),
-        api.tools.notes(),
-      ]);
-      setExpiring(e); setNeverPaid(n); setRevenue(r); setNotes(no);
-    } finally { setLoading(false); }
+      const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=12&orientation=landscape&client_id=${UNSPLASH_KEY}`);
+      const d = await r.json();
+      setImages(d.results||[]);
+      if(d.results?.length) setSelImg(d.results[0]);
+    } catch(e) { console.error(e); }
+    finally { setImgLoading(false); }
   };
 
-  useEffect(()=>{ load(); }, [expiryDays]);
+  const searchImages = (e) => { e.preventDefault(); fetchImages(imgQuery); };
 
-  const extend = async () => {
-    if (!extendDays) return;
-    setExtendSaving(true);
-    try {
-      await api.tools.extend({ libraryId: extendModal.id, days: parseInt(extendDays), reason:"Admin extension" });
-      setSuccess(`Extended ${extendModal.library_name} by ${extendDays} days`);
-      setExtendModal(null); load();
-      setTimeout(()=>setSuccess(""),4000);
-    } finally { setExtendSaving(false); }
+  // Share to Facebook
+  const shareToFacebook = () => {
+    const text = encodeURIComponent(caption);
+    const imgUrl = selImg ? encodeURIComponent(selImg.urls.regular) : "";
+    // If FB page connected, use share dialog; otherwise open page
+    if (fbPage) {
+      window.open(`https://www.facebook.com/${fbPage}`, "_blank");
+      setTimeout(()=>alert("Facebook page opened. Paste your caption and upload the image to post."), 500);
+    } else {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://www.librarydesk.in")}&quote=${text}`, "_blank");
+    }
   };
 
-  const addNote = async () => {
-    if (!newNote.trim()) return;
-    await api.tools.addNote({ content: newNote });
-    setNewNote(""); load();
+  // Share to Instagram (opens with instructions — IG doesn't support direct post via web)
+  const shareToInstagram = () => {
+    // Copy caption to clipboard then open Instagram
+    navigator.clipboard.writeText(caption).then(()=>{
+      if (igHandle) {
+        window.open(`https://www.instagram.com/${igHandle.replace("@","")}`, "_blank");
+      } else {
+        window.open("https://www.instagram.com/", "_blank");
+      }
+      alert("Caption copied to clipboard! \n\nInstagram doesn't allow direct web posting. Open your Instagram account, create a new post, upload the image, then paste the caption.");
+    });
   };
 
-  const delNote = async (id) => {
-    await api.tools.delNote(id);
-    load();
+  // Download image + caption as a file for posting
+  const downloadPost = async () => {
+    if (!selImg) return;
+    // Download image
+    const a = document.createElement("a");
+    a.href = selImg.urls.full + "&dl=1";
+    a.download = "post-image.jpg";
+    a.target = "_blank";
+    a.click();
+    // Copy caption
+    await navigator.clipboard.writeText(caption);
+    alert("Image downloading + caption copied to clipboard! Ready to post.");
   };
 
-  const waLink = (lib, msg) => {
-    const text = msg || `Hi ${lib.owner_name}, this is a reminder from LibraryDesk regarding your library account "${lib.library_name}". Please contact us to continue.`;
-    return `https://wa.me/${lib.email.includes('@') ? '' : lib.email}?text=${encodeURIComponent(text)}`;
+  // WA Blast
+  const filteredLibs = libraries.filter(l => {
+    if (waAudience === "all") return true;
+    if (waAudience === "active") return l.subscription_status === "active";
+    if (waAudience === "trial") return l.subscription_status === "trial";
+    if (waAudience === "expired") return l.subscription_status === "expired";
+    return true;
+  });
+
+  const sendWA = async () => {
+    if (!waMsg.trim() || filteredLibs.length === 0) return;
+    setWaStep("sending");
+    setSentCount(0);
+    // Open WhatsApp for each library one by one with delay
+    for (let i = 0; i < filteredLibs.length; i++) {
+      const lib = filteredLibs[i];
+      const phone = lib.phone || lib.owner_phone || "";
+      if (!phone) continue;
+      const msg = waMsg
+        .replace("{name}", lib.owner_name)
+        .replace("{library}", lib.library_name);
+      setTimeout(()=>{
+        window.open(`https://wa.me/91${phone.replace(/\D/g,"")}?text=${encodeURIComponent(msg)}`, "_blank");
+        setSentCount(i+1);
+      }, i * 2000);
+    }
+    setTimeout(()=>setWaStep("done"), filteredLibs.length * 2000 + 500);
   };
 
-  const mom = revenue ? ((Number(revenue.this_month) - Number(revenue.last_month)) / Math.max(Number(revenue.last_month),1) * 100).toFixed(0) : 0;
+  const saveConnect = () => {
+    localStorage.setItem("ld_fb_page", fbPage);
+    localStorage.setItem("ld_ig_handle", igHandle);
+    setSaved(true);
+    setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const tabBtn = (id, label, icon) => (
+    <button onClick={()=>setTab(id)} style={{
+      display:"flex",alignItems:"center",gap:8,padding:"10px 20px",
+      background:tab===id?"var(--accent-dim)":"transparent",
+      color:tab===id?"var(--accent2)":"var(--text3)",
+      border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13,
+      borderBottom:tab===id?"2px solid var(--accent)":"2px solid transparent",
+      transition:"all .2s",
+    }}>{icon} {label}</button>
+  );
 
   return (
     <div>
-      {success && <div className="alert alert-success" style={{marginBottom:16}}><Icon name="check" size={14}/>{success}</div>}
-
-      {/* ── Revenue Snapshot ── */}
-      <div className="stats-grid" style={{marginBottom:20}}>
-        <div className="stat gold">
-          <div className="stat-label">This Month</div>
-          <div className="stat-value">{fmt(revenue?.this_month)}</div>
-          <div className="stat-sub">{revenue?.payments_this_month||0} payments</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Last Month</div>
-          <div className="stat-value">{fmt(revenue?.last_month)}</div>
-          <div className="stat-sub">{revenue?.payments_last_month||0} payments</div>
-        </div>
-        <div className={`stat ${Number(mom)>=0?"green":"red"}`}>
-          <div className="stat-label">MoM Growth</div>
-          <div className="stat-value">{Number(mom)>=0?"+":""}{mom}%</div>
-          <div className="stat-sub">vs last month</div>
-        </div>
-        <div className="stat accent">
-          <div className="stat-label">This Year</div>
-          <div className="stat-value">{fmt(revenue?.this_year)}</div>
-          <div className="stat-sub">Total 2025</div>
-        </div>
+      {/* ── Tabs ── */}
+      <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
+        {tabBtn("post",      "Post Composer",    "📸")}
+        {tabBtn("whatsapp",  "WhatsApp Blast",   "💬")}
+        {tabBtn("connect",   "Connect Accounts", "🔗")}
       </div>
 
-      <div className="grid-2" style={{marginBottom:16}}>
-        {/* ── Expiring Soon ── */}
-        <div className="card">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-            <div className="section-title" style={{margin:0}}>⚠️ Expiring Subscriptions</div>
-            <select className="input" style={{width:"auto",padding:"4px 10px",fontSize:12}}
-              value={expiryDays} onChange={e=>setExpiryDays(e.target.value)}>
-              {[7,14,30].map(d=><option key={d} value={d}>Next {d} days</option>)}
-            </select>
-          </div>
-          {loading ? <Spinner/> : expiring.length===0
-            ? <div className="empty" style={{padding:"24px 0"}}><div className="empty-icon">🎉</div><div style={{fontSize:13}}>No subscriptions expiring in {expiryDays} days</div></div>
-            : expiring.map(l=>(
-              <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--border)",gap:8}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.library_name}</div>
-                  <div className="text-xs text-muted">{l.plan_name} · expires {fmtDate(l.current_period_end)}</div>
-                </div>
-                <span className={`badge ${l.days_left<=3?"badge-red":"badge-yellow"}`}>{l.days_left}d left</span>
-                <div className="flex gap-2">
-                  <a href={`https://wa.me/91${l.email}`} target="_blank" rel="noreferrer"
-                    style={{width:28,height:28,background:"#25D366",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none",fontSize:13}}>💬</a>
-                  <button className="btn btn-secondary btn-sm" onClick={()=>setExtendModal(l)}>Extend</button>
-                </div>
+      {/* ══════════ POST COMPOSER ══════════ */}
+      {tab === "post" && (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:16,alignItems:"start"}}>
+          {/* Left — editor */}
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+            {/* Caption */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>✍️ Caption</div>
+              <textarea
+                className="input" rows={5}
+                placeholder={`Write your post caption here...
+
+Example:
+📚 Secure your seat today at our library!
+🕐 Morning, Evening & Full-day shifts available
+💰 Starting at just ₹500/month
+
+📞 Call us or visit in person
+#library #study #success`}
+                value={caption} onChange={e=>setCaption(e.target.value)}
+                style={{resize:"vertical",fontFamily:"inherit",lineHeight:1.7}}
+              />
+              <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+                {["📚 Study Hard!","🎯 Limited Seats","💸 Special Offer","📅 New Batch","🏆 Success Story"].map(t=>(
+                  <button key={t} className="btn btn-secondary btn-sm"
+                    onClick={()=>setCaption(c=>c+(c?"
+":"")+t)}>{t}</button>
+                ))}
               </div>
-            ))
-          }
-        </div>
+            </div>
 
-        {/* ── Never Paid / Leads ── */}
-        <div className="card">
-          <div className="section-title" style={{marginBottom:14}}>🎯 Trial / Never Paid</div>
-          {loading ? <Spinner/> : neverPaid.length===0
-            ? <div className="empty" style={{padding:"24px 0"}}><div className="empty-icon">✅</div><div style={{fontSize:13}}>Everyone has paid!</div></div>
-            : neverPaid.slice(0,8).map(l=>(
-              <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--border)",gap:8}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.library_name}</div>
-                  <div className="text-xs text-muted">{l.owner_name} · {l.days_since_signup}d ago</div>
+            {/* Image Search */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>🖼️ Choose Image (Free from Unsplash)</div>
+              <form onSubmit={searchImages} style={{display:"flex",gap:8,marginBottom:12}}>
+                <input className="input" style={{flex:1}} placeholder="Search: library, study, books, students…"
+                  value={imgQuery} onChange={e=>setImgQuery(e.target.value)}/>
+                <button className="btn btn-primary" type="submit">Search</button>
+              </form>
+              {imgLoading ? <div style={{textAlign:"center",padding:20}}><Spinner/></div> : (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+                  {images.map(img=>(
+                    <div key={img.id} onClick={()=>setSelImg(img)}
+                      style={{
+                        borderRadius:8,overflow:"hidden",cursor:"pointer",aspectRatio:"16/9",
+                        border:`2px solid ${selImg?.id===img.id?"var(--accent)":"transparent"}`,
+                        transition:"border .15s",
+                      }}>
+                      <img src={img.urls.small} alt={img.alt_description}
+                        style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    </div>
+                  ))}
                 </div>
-                {statusBadge(l.subscription_status)}
-                <a href={`https://wa.me/917844913738?text=${encodeURIComponent(`Hi! Following up on your LibraryDesk trial for "${l.library_name}". Would you like to activate your account? We have special offers available!`)}`}
-                  target="_blank" rel="noreferrer"
-                  style={{width:28,height:28,background:"#25D366",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none",fontSize:13,flexShrink:0}}>💬</a>
+              )}
+              {selImg && (
+                <div style={{marginTop:8,fontSize:11,color:"var(--text3)"}}>
+                  Photo by <a href={selImg.user.links.html+"?utm_source=librarydesk&utm_medium=referral"} target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>{selImg.user.name}</a> on <a href="https://unsplash.com?utm_source=librarydesk&utm_medium=referral" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>Unsplash</a>
+                </div>
+              )}
+            </div>
+
+            {/* Platform + Share */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:10}}>🚀 Share To</div>
+              <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                {[["both","Both"],["facebook","Facebook"],["instagram","Instagram"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setPlatform(v)}
+                    className={`btn ${platform===v?"btn-primary":"btn-secondary"}`}>{l}</button>
+                ))}
               </div>
-            ))
-          }
-        </div>
-      </div>
-
-      {/* ── Quick Actions ── */}
-      <div className="card" style={{marginBottom:16}}>
-        <div className="section-title" style={{marginBottom:14}}>⚡ Quick Actions</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
-          {[
-            { label:"View All Libraries",  icon:"users",   action:()=>window.location.hash="#libraries" },
-            { label:"Record Payment",      icon:"payment", action:()=>document.querySelector('[data-page=payments]')?.click() },
-            { label:"Create Coupon",       icon:"coupon",  action:()=>document.querySelector('[data-page=coupons]')?.click() },
-            { label:"LibraryDesk Website", icon:"link",    action:()=>window.open("https://www.librarydesk.in","_blank") },
-            { label:"App Dashboard",       icon:"link",    action:()=>window.open("https://app.librarydesk.in","_blank") },
-            { label:"WhatsApp Support",    icon:"plan",    action:()=>window.open("https://wa.me/917844913738","_blank") },
-          ].map((a,i)=>(
-            <button key={i} className="btn btn-secondary" style={{justifyContent:"flex-start",gap:8,padding:"10px 14px"}} onClick={a.action}>
-              <Icon name={a.icon} size={14}/>{a.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Sticky Notes ── */}
-      <div className="card">
-        <div className="section-title" style={{marginBottom:14}}>📝 Business Notes</div>
-        <div style={{display:"flex",gap:8,marginBottom:14}}>
-          <input className="input" style={{flex:1}} placeholder="Add a note — follow ups, reminders, ideas…"
-            value={newNote} onChange={e=>setNewNote(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&addNote()}/>
-          <button className="btn btn-primary" onClick={addNote}><Icon name="plus" size={14}/>Add</button>
-        </div>
-        {notes.length===0 ? <div className="text-muted text-sm">No notes yet</div> :
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {notes.map(n=>(
-              <div key={n.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
-                <span style={{fontSize:14,marginTop:1}}>📌</span>
-                <div style={{flex:1,fontSize:13,lineHeight:1.6}}>{n.content}</div>
-                <div style={{fontSize:11,color:"var(--text3)",flexShrink:0,marginTop:1}}>{fmtDate(n.created_at)}</div>
-                <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>delNote(n.id)} style={{color:"var(--red)",flexShrink:0}}>
-                  <Icon name="x" size={13}/>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {(platform==="both"||platform==="facebook") && (
+                  <button className="btn btn-primary" onClick={shareToFacebook}
+                    style={{background:"#1877F2",borderColor:"#1877F2",gap:8,flex:1}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                    Post to Facebook
+                  </button>
+                )}
+                {(platform==="both"||platform==="instagram") && (
+                  <button className="btn btn-primary" onClick={shareToInstagram}
+                    style={{background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",border:"none",gap:8,flex:1}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                    Copy & Open Instagram
+                  </button>
+                )}
+                <button className="btn btn-secondary" onClick={downloadPost} style={{gap:8}}>
+                  ⬇️ Download Post
                 </button>
               </div>
-            ))}
+              <div style={{marginTop:10,padding:"8px 12px",background:"var(--surface2)",borderRadius:8,fontSize:12,color:"var(--text3)"}}>
+                💡 <strong>Tip:</strong> For Instagram, caption is auto-copied to clipboard. Connect your accounts in the "Connect Accounts" tab for quick access.
+              </div>
+            </div>
           </div>
-        }
-      </div>
 
-      {/* ── Extend Modal ── */}
-      {extendModal && <div className="modal-overlay"><div className="modal">
-        <div className="modal-header">
-          <div className="modal-title">Extend Subscription</div>
-          <button className="btn btn-ghost btn-icon" onClick={()=>setExtendModal(null)}><Icon name="x" size={16}/></button>
-        </div>
-        <div className="modal-body">
-          <div style={{marginBottom:16}}>
-            <div style={{fontWeight:700}}>{extendModal.library_name}</div>
-            <div className="text-sm text-muted">{extendModal.owner_name} · Expires {fmtDate(extendModal.current_period_end)}</div>
+          {/* Right — Preview */}
+          <div style={{position:"sticky",top:16}}>
+            <div className="card" style={{padding:0,overflow:"hidden"}}>
+              {/* Instagram-style preview */}
+              <div style={{padding:"12px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(45deg,#f09433,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:800,fontSize:13}}>L</div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13}}>LibraryDesk</div>
+                  <div style={{fontSize:11,color:"var(--text3)"}}>Sponsored</div>
+                </div>
+                <div style={{marginLeft:"auto",fontSize:18,color:"var(--text3)"}}>···</div>
+              </div>
+              {selImg ? (
+                <img src={selImg.urls.regular} alt="preview"
+                  style={{width:"100%",aspectRatio:"1/1",objectFit:"cover"}}/>
+              ) : (
+                <div style={{width:"100%",aspectRatio:"1/1",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",flexDirection:"column",gap:8}}>
+                  <span style={{fontSize:32}}>🖼️</span>
+                  <span style={{fontSize:12}}>Select an image</span>
+                </div>
+              )}
+              <div style={{padding:"12px 14px"}}>
+                <div style={{display:"flex",gap:14,marginBottom:10,fontSize:20}}>
+                  <span>🤍</span><span>💬</span><span>📤</span>
+                  <span style={{marginLeft:"auto"}}>🔖</span>
+                </div>
+                <div style={{fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:120,overflow:"hidden"}}>
+                  {caption || <span style={{color:"var(--text3)"}}>Your caption will appear here…</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{marginTop:8,fontSize:11,color:"var(--text3)",textAlign:"center"}}>Instagram Preview</div>
           </div>
-          <div className="form-group">
-            <label className="label">Extend by (days)</label>
-            <select className="input" value={extendDays} onChange={e=>setExtendDays(e.target.value)}>
-              {["7","14","30","60","90","365"].map(d=><option key={d} value={d}>{d} days</option>)}
-            </select>
+        </div>
+      )}
+
+      {/* ══════════ WHATSAPP BLAST ══════════ */}
+      {tab === "whatsapp" && (
+        <div style={{maxWidth:720}}>
+          {waStep === "done" ? (
+            <div className="card" style={{textAlign:"center",padding:40}}>
+              <div style={{fontSize:48,marginBottom:12}}>✅</div>
+              <div style={{fontWeight:700,fontSize:18,marginBottom:8}}>WhatsApp Blast Sent!</div>
+              <div style={{color:"var(--text3)",marginBottom:20}}>Opened WhatsApp for {sentCount} libraries.</div>
+              <button className="btn btn-primary" onClick={()=>{setWaStep("compose");setSentCount(0);}}>Send Another</button>
+            </div>
+          ) : waStep === "sending" ? (
+            <div className="card" style={{textAlign:"center",padding:40}}>
+              <Spinner size={40}/>
+              <div style={{fontWeight:700,fontSize:16,marginTop:16,marginBottom:8}}>Sending…</div>
+              <div style={{color:"var(--text3)"}}>{sentCount} of {filteredLibs.length} opened</div>
+              <div style={{marginTop:12,fontSize:12,color:"var(--text3)"}}>Each WhatsApp opens with a 2s delay to avoid being blocked.</div>
+            </div>
+          ) : (
+            <>
+              <div className="card" style={{marginBottom:12}}>
+                <div className="section-title" style={{marginBottom:12}}>📋 Audience</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+                  {[["all","All Libraries"],["active","Active"],["trial","On Trial"],["expired","Expired"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setWaAudience(v)}
+                      className={`btn ${waAudience===v?"btn-primary":"btn-secondary"}`} style={{fontSize:13}}>
+                      {l} {v==="all"?`(${libraries.length})`:v==="active"?`(${libraries.filter(x=>x.subscription_status==="active").length})`:v==="trial"?`(${libraries.filter(x=>x.subscription_status==="trial").length})`:`(${libraries.filter(x=>x.subscription_status==="expired").length})`}
+                    </button>
+                  ))}
+                </div>
+                <div style={{padding:"8px 12px",background:"var(--surface2)",borderRadius:8,fontSize:13,color:"var(--text2)"}}>
+                  📨 Will send to <strong>{filteredLibs.length}</strong> libraries
+                </div>
+              </div>
+
+              <div className="card" style={{marginBottom:12}}>
+                <div className="section-title" style={{marginBottom:10}}>✍️ Message</div>
+                <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>
+                  Use <code style={{background:"var(--surface2)",padding:"1px 6px",borderRadius:4}}>{"{name}"}</code> for owner name, <code style={{background:"var(--surface2)",padding:"1px 6px",borderRadius:4}}>{"{library}"}</code> for library name
+                </div>
+                <textarea className="input" rows={6}
+                  placeholder={`Hi {name}! 🎉
+
+Great news from LibraryDesk!
+
+We're offering a special discount this month — ₹1,000/month for full access to everything.
+
+Reply YES to activate your account for {library}.
+
+Team LibraryDesk
+www.librarydesk.in`}
+                  value={waMsg} onChange={e=>setWaMsg(e.target.value)}
+                  style={{resize:"vertical",lineHeight:1.7}}/>
+                <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+                  {[
+                    ["🎉 Special Offer", `Hi {name}! 🎉
+
+Special offer for {library} — Activate your LibraryDesk account this month and get full access.
+
+✅ Unlimited students
+✅ Seat map & shifts
+✅ WhatsApp reminders
+
+Reply to activate!
+www.librarydesk.in`],
+                    ["⏰ Trial Ending", `Hi {name}, your free trial for {library} is ending soon!
+
+Don't lose access to your library management tools. Activate for just ₹1,000/month.
+
+Contact us to continue!
+www.librarydesk.in`],
+                    ["🔔 Renewal Reminder", `Hi {name}! 👋
+
+This is a reminder to renew your LibraryDesk subscription for {library}.
+
+Stay on top of your students, seats and payments without interruption.
+
+Reply to renew!
+www.librarydesk.in`],
+                  ].map(([label, text])=>(
+                    <button key={label} className="btn btn-secondary btn-sm"
+                      onClick={()=>setWaMsg(text)}>{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              {waMsg && filteredLibs.length > 0 && (
+                <div className="card" style={{marginBottom:12,borderColor:"var(--accent)"}}>
+                  <div className="section-title" style={{marginBottom:10}}>👁️ Preview</div>
+                  <div style={{background:"#0b1f0e",borderRadius:12,padding:"14px 16px",fontFamily:"inherit",fontSize:13,lineHeight:1.8,whiteSpace:"pre-wrap",color:"#e8f5e9",maxHeight:200,overflow:"auto"}}>
+                    {waMsg.replace("{name}", filteredLibs[0]?.owner_name||"Rajesh").replace("{library}", filteredLibs[0]?.library_name||"Study Point")}
+                  </div>
+                </div>
+              )}
+
+              <button className="btn btn-primary" style={{width:"100%",justifyContent:"center",padding:14,fontSize:15,gap:10,background:"#25D366",borderColor:"#25D366"}}
+                onClick={sendWA} disabled={!waMsg.trim()||filteredLibs.length===0}>
+                💬 Send WhatsApp to {filteredLibs.length} Libraries
+              </button>
+              <div style={{marginTop:8,fontSize:12,color:"var(--text3)",textAlign:"center"}}>
+                Each message opens in WhatsApp Web one by one. Keep this tab open while sending.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══════════ CONNECT ACCOUNTS ══════════ */}
+      {tab === "connect" && (
+        <div style={{maxWidth:600}}>
+          <div className="card" style={{marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:44,height:44,borderRadius:12,background:"#1877F2",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+              </div>
+              <div>
+                <div style={{fontWeight:700}}>Facebook Page</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>Your business Facebook page username or URL</div>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="label">Facebook Page Username</label>
+              <input className="input" placeholder="e.g. YourLibraryPage or full URL"
+                value={fbPage} onChange={e=>setFbPage(e.target.value)}/>
+            </div>
+            {fbPage && (
+              <a href={`https://www.facebook.com/${fbPage}`} target="_blank" rel="noreferrer"
+                className="btn btn-secondary btn-sm" style={{marginTop:4}}>
+                Open Page →
+              </a>
+            )}
           </div>
-          <div className="alert alert-warn"><Icon name="warn" size={13}/>This extends without recording a payment. Use Record Payment for paid extensions.</div>
+
+          <div className="card" style={{marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:44,height:44,borderRadius:12,background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+              </div>
+              <div>
+                <div style={{fontWeight:700}}>Instagram Account</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>Your business Instagram handle</div>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="label">Instagram Handle</label>
+              <input className="input" placeholder="@yourlibrary"
+                value={igHandle} onChange={e=>setIgHandle(e.target.value)}/>
+            </div>
+            {igHandle && (
+              <a href={`https://www.instagram.com/${igHandle.replace("@","")}`} target="_blank" rel="noreferrer"
+                className="btn btn-secondary btn-sm" style={{marginTop:4}}>
+                Open Profile →
+              </a>
+            )}
+          </div>
+
+          <button className="btn btn-primary" style={{width:"100%",justifyContent:"center"}}
+            onClick={saveConnect}>
+            {saved ? "✅ Saved!" : "Save Connections"}
+          </button>
+
+          <div className="card" style={{marginTop:12,borderColor:"var(--yellow)"}}>
+            <div style={{fontWeight:700,marginBottom:8,color:"var(--yellow)"}}>ℹ️ About Social Media Posting</div>
+            <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8}}>
+              Facebook and Instagram require <strong>Meta Business API approval</strong> for direct posting — a process that takes weeks and requires business verification.<br/><br/>
+              The current setup gives you the <strong>fastest path</strong>:<br/>
+              • Design your post here with free Unsplash images<br/>
+              • Download the image + auto-copy the caption<br/>
+              • One click opens your connected Facebook/Instagram page<br/>
+              • Paste and publish in seconds<br/><br/>
+              <strong>Want full API integration?</strong> Reply on WhatsApp and we'll set it up once your Meta Business account is verified.
+            </div>
+          </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={()=>setExtendModal(null)}>Cancel</button>
-          <button className="btn btn-primary" onClick={extend} disabled={extendSaving}>{extendSaving&&<Spinner/>}Extend</button>
-        </div>
-      </div></div>}
+      )}
     </div>
   );
 }
@@ -1080,13 +1326,13 @@ export default function App() {
     { id:"coupons",   icon:"coupon",    label:"Coupons",    section:"manage" },
     { id:"plans",     icon:"plan",      label:"SaaS Plans", section:"manage" },
     { id:"reports",   icon:"chart",     label:"Reports",    section:"manage" },
-  { id:"tools",     icon:"plan",      label:"Tools",      section:"manage" },
+  { id:"marketing", icon:"marketing",  label:"Marketing",  section:"manage" },
   ];
 
   const titles = { dashboard:"Dashboard", libraries:"Libraries", payments:"Payments", coupons:"Coupons", plans:"SaaS Plans", reports:"Reports", tools:"Tools" };
   const subs   = { dashboard:"Overview & metrics", libraries:"Manage library accounts", payments:"Track & record payments", coupons:"Discount codes", plans:"Subscription plans", reports:"Analytics & insights", tools:"Expiring, leads & quick actions" };
 
-  const pages = { dashboard:<Dashboard/>, libraries:<Libraries/>, payments:<Payments/>, coupons:<Coupons/>, plans:<Plans/>, reports:<Reports/>, tools:<Tools/> };
+  const pages = { dashboard:<Dashboard/>, libraries:<Libraries/>, payments:<Payments/>, coupons:<Coupons/>, plans:<Plans/>, reports:<Reports/>, marketing:<Marketing/> };
 
   return (
     <>
