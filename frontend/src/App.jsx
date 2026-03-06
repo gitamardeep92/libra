@@ -625,8 +625,7 @@ function Marketing({ data, library }) {
                 style={{resize:"vertical",lineHeight:1.7}}/>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                 {["📚 Seats Available","🎯 Limited Seats Left","💸 Special Offer","🏆 Success Story","📅 New Batch Starting"].map(t=>(
-                  <button key={t} className="btn btn-secondary btn-sm" onClick={()=>setCaption(c=>c+(c?"
-":"")+t)}>{t}</button>
+                  <button key={t} className="btn btn-secondary btn-sm" onClick={()=>setCaption(c=>c+(c?"\n":"")+t)}>{t}</button>
                 ))}
               </div>
             </div>
