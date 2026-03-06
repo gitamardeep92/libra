@@ -258,10 +258,8 @@ router.get('/billing', auth, async (req, res) => {
         [req.libraryId]
       ),
       pool.query(
-        `SELECT sp.amount, sp.status, sp.payment_method, sp.paid_at, i.invoice_number
-         SELECT sp.amount, sp.status, sp.payment_method, sp.paid_at, sp.notes,
-                i.invoice_number,
-                ss.plan_name
+        `SELECT sp.amount, sp.status, sp.payment_method, sp.paid_at, sp.notes,
+                i.invoice_number, ss.plan_name
          FROM saas_payments sp
          LEFT JOIN invoices i ON i.payment_id=sp.id
          LEFT JOIN saas_subscriptions ss ON ss.library_id=sp.library_id

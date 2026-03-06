@@ -510,7 +510,7 @@ router.get('/tools/expiring', adminAuth, async (req, res) => {
       FROM libraries l
       JOIN saas_subscriptions ss ON ss.library_id = l.id
       WHERE l.subscription_status = 'active'
-        AND ss.current_period_end BETWEEN NOW() AND NOW() + ($1 || ' days')::interval
+        AND ss.current_period_end BETWEEN NOW() AND NOW() + (CAST($1 AS INT) * INTERVAL '1 day')
         AND ss.status = 'active'
       ORDER BY ss.current_period_end ASC
     `, [days]);
@@ -560,7 +560,7 @@ router.post('/tools/extend', adminAuth, async (req, res) => {
   try {
     await pool.query(`
       UPDATE saas_subscriptions
-      SET current_period_end = current_period_end + ($1 || ' days')::interval, updated_at = NOW()
+      SET current_period_end = current_period_end + (CAST($1 AS INT) * INTERVAL '1 day'), updated_at = NOW()
       WHERE library_id = $2 AND status = 'active'
     `, [days, libraryId]);
     await pool.query(`UPDATE libraries SET subscription_status='active', is_active=TRUE WHERE id=$1`, [libraryId]);

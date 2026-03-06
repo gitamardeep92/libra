@@ -37,6 +37,15 @@ const api = {
   deleteCoupon:(id) => req(`/api/admin/coupons/${id}`,{ method:"DELETE" }),
   reports:    ()    => req("/api/admin/reports"),
   invoices:   ()    => req("/api/admin/invoices"),
+  tools: {
+    expiring:  (days=7) => req(`/api/admin/tools/expiring?days=${days}`),
+    neverPaid: ()       => req('/api/admin/tools/never-paid'),
+    revenue:   ()       => req('/api/admin/tools/revenue-summary'),
+    extend:    (b)      => req('/api/admin/tools/extend', { method:'POST', body:JSON.stringify(b) }),
+    notes:     ()       => req('/api/admin/tools/notes'),
+    addNote:   (b)      => req('/api/admin/tools/notes', { method:'POST', body:JSON.stringify(b) }),
+    delNote:   (id)     => req(`/api/admin/tools/notes/${id}`, { method:'DELETE' }),
+  },
 };
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
