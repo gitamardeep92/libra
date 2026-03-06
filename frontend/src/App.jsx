@@ -500,7 +500,7 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
 
 // ─── MARKETING PAGE ───────────────────────────────────────────────────────────
 function Marketing({ data, library }) {
-  const UNSPLASH_KEY = "P1poBnN8UBe3bRPLeB5Vo5bPmvbAp4IiW7PJHM8KSWI";
+  const UNSPLASH_KEY = import.meta.env.VITE_UNSPLASH_KEY || "";
   const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | social
   const [selectedShifts, setSelectedShifts] = useState([]);
   const [statusFilter, setStatusFilter]     = useState("active"); // active | expiring | all
