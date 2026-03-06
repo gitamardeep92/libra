@@ -900,8 +900,7 @@ Example:
               <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
                 {["📚 Study Hard!","🎯 Limited Seats","💸 Special Offer","📅 New Batch","🏆 Success Story"].map(t=>(
                   <button key={t} className="btn btn-secondary btn-sm"
-                    onClick={()=>setCaption(c=>c+(c?"
-":"")+t)}>{t}</button>
+                    onClick={()=>setCaption(c=>c+(c?"\n":"")+t)}>{t}</button>
                 ))}
               </div>
             </div>
