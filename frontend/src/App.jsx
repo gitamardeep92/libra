@@ -581,11 +581,13 @@ function Marketing({ data, library }) {
       alert("Caption copied! Open Instagram, create a post, upload the image and paste the caption.");
     });
   };
-  const downloadPost = () => {
-    if(!selImg) return;
-    const a=document.createElement("a"); a.href=selImg.urls.full+"&dl=1"; a.download="post-image.jpg"; a.target="_blank"; a.click();
-    navigator.clipboard.writeText(caption);
-    alert("Image downloading + caption copied to clipboard!");
+  const [downloaded, setDownloaded] = useState(false);
+  const downloadPost = async () => {
+    if(!selImg){ alert("Please select an image first."); return; }
+    await navigator.clipboard.writeText(caption||"");
+    const a=document.createElement("a"); a.href=selImg.urls.full; a.download="librarydesk-post.jpg"; a.target="_blank";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setDownloaded(true); setTimeout(()=>setDownloaded(false),4000);
   };
 
   return (
@@ -662,15 +664,22 @@ function Marketing({ data, library }) {
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
                   Post to Facebook
                 </button>
-                <button className="btn btn-primary" onClick={shareToInstagram}
+                <button className="btn btn-primary" onClick={downloadPost}
                   style={{background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",border:"none",gap:8,flex:1}}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                  Copy & Open Instagram
+                  ⬇️ Download for Instagram
                 </button>
-                <button className="btn btn-secondary" onClick={downloadPost} style={{gap:6}}>⬇️ Download</button>
               </div>
               <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
-                <div className="form-group" style={{flex:1,marginBottom:0}}>
+                {downloaded && (
+                <div style={{width:"100%",padding:"10px 14px",background:"var(--green-dim)",border:"1px solid var(--green)",borderRadius:8,fontSize:13,color:"var(--green)",fontWeight:600,marginTop:4}}>
+                  ✅ Image downloading + caption copied!
+                </div>
+              )}
+              <div style={{width:"100%",padding:"10px 14px",background:"var(--surface2)",borderRadius:8,fontSize:12,color:"var(--text2)",lineHeight:1.7,marginTop:4}}>
+                <strong style={{color:"var(--text)"}}>📱 Instagram:</strong> Download image → open Instagram app → tap + → select image → paste caption → Post
+              </div>
+              <div className="form-group" style={{flex:1,marginBottom:0}}>
                   <label className="label">Facebook Page</label>
                   <input className="input" placeholder="YourPageName" value={fbPage} onChange={e=>setFbPage(e.target.value)}/>
                 </div>

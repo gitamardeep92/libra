@@ -745,6 +745,7 @@ function Marketing() {
   const [selImg, setSelImg]       = useState(null);
   const [imgQuery, setImgQuery]   = useState("library study");
   const [imgLoading, setImgLoading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const [platform, setPlatform]   = useState("both");
 
   // ── WA Blast ──
@@ -806,16 +807,17 @@ function Marketing() {
 
   // Download image + caption as a file for posting
   const downloadPost = async () => {
-    if (!selImg) return;
-    // Download image
+    if (!selImg) { alert("Please select an image first."); return; }
+    await navigator.clipboard.writeText(caption || "");
     const a = document.createElement("a");
-    a.href = selImg.urls.full + "&dl=1";
-    a.download = "post-image.jpg";
+    a.href = selImg.urls.full;
+    a.download = "librarydesk-post.jpg";
     a.target = "_blank";
+    document.body.appendChild(a);
     a.click();
-    // Copy caption
-    await navigator.clipboard.writeText(caption);
-    alert("Image downloading + caption copied to clipboard! Ready to post.");
+    document.body.removeChild(a);
+    setDownloaded(true);
+    setTimeout(()=>setDownloaded(false), 4000);
   };
 
   // WA Blast
@@ -953,18 +955,24 @@ Example:
                   </button>
                 )}
                 {(platform==="both"||platform==="instagram") && (
-                  <button className="btn btn-primary" onClick={shareToInstagram}
+                  <button className="btn btn-primary" onClick={downloadPost}
                     style={{background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",border:"none",gap:8,flex:1}}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                    Copy & Open Instagram
+                    ⬇️ Download for Instagram
                   </button>
                 )}
-                <button className="btn btn-secondary" onClick={downloadPost} style={{gap:8}}>
-                  ⬇️ Download Post
-                </button>
               </div>
-              <div style={{marginTop:10,padding:"8px 12px",background:"var(--surface2)",borderRadius:8,fontSize:12,color:"var(--text3)"}}>
-                💡 <strong>Tip:</strong> For Instagram, caption is auto-copied to clipboard. Connect your accounts in the "Connect Accounts" tab for quick access.
+              {downloaded && (
+                <div style={{marginTop:10,padding:"12px 14px",background:"var(--green-dim)",border:"1px solid var(--green)",borderRadius:8,fontSize:13,color:"var(--green)",fontWeight:600}}>
+                  ✅ Image downloading + caption copied to clipboard!
+                </div>
+              )}
+              <div style={{marginTop:10,padding:"12px 14px",background:"var(--surface2)",borderRadius:8,fontSize:12,color:"var(--text2)",lineHeight:1.8}}>
+                <strong style={{color:"var(--text)"}}>📱 How to post on Instagram:</strong><br/>
+                1. Click "Download for Instagram" above<br/>
+                2. Open Instagram app on your phone<br/>
+                3. Tap <strong>+</strong> → select the downloaded image<br/>
+                4. Paste the caption (already copied!) → Post
               </div>
             </div>
           </div>
