@@ -1187,7 +1187,7 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
 
 // ─── GENERIC CRUD PAGES (condensed versions using API) ────────────────────────
 
-function Shifts({ data, reload }) {
+function Shifts({ data, reload, readonly=false }) {
   const [showModal, setShowModal] = useState(false);
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState({name:"",startTime:"",endTime:"",description:""});
@@ -1202,7 +1202,7 @@ function Shifts({ data, reload }) {
   return(
     <div>
       {confirmDel&&<ConfirmDialog title="Delete Shift?" message="Existing subscriptions won't be affected." confirmLabel="Delete" danger onConfirm={()=>del(confirmDel)} onCancel={()=>setConfirmDel(null)}/>}
-      <div className="page-header"><div className="page-header-left"><h1>Shifts</h1><p>Define library time slots</p></div><button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add Shift</button></div>
+      <div className="page-header"><div className="page-header-left"><h1>Shifts</h1><p>Define library time slots</p></div>{!readonly&&<button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add Shift</button>}</div>
       {data.shifts.length===0?<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="clock" size={26} color="var(--text3)"/></div><div className="empty-title">No shifts defined</div><div className="empty-sub">Create shifts like Morning, Evening, Full Day</div></div></div>
         :<div className="plans-grid">{data.shifts.map(sh=>{const usedCount=(data.subscriptions||[]).filter(s=>s.shift_id===sh.id&&s.status==="active").length;return(<div key={sh.id} className="plan-card"><div style={{display:"flex",justifyContent:"space-between"}}><div className="lib-avatar" style={{width:36,height:36,borderRadius:10,background:"var(--purple-dim)",border:"1px solid var(--purple)",color:"var(--purple)"}}><Icon name="clock" size={16}/></div><span className="badge badge-gray">{usedCount} active</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,marginTop:12,marginBottom:4}}>{sh.name}</div><div style={{fontSize:13,color:"var(--text2)"}}>{sh.start_time} — {sh.end_time}</div>{sh.description&&<div className="text-sm text-muted" style={{marginTop:4}}>{sh.description}</div>}<div style={{display:"flex",gap:8,marginTop:12}}><button className="btn btn-secondary btn-sm" onClick={()=>open(sh)}><Icon name="edit" size={13}/>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setConfirmDel(sh.id)}><Icon name="trash" size={13}/></button></div></div>);})}</div>}
       {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Create"} Shift</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Shift Name *</label><input className="input" placeholder="Morning, Evening, Full Day…" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-row"><div className="form-group"><label className="label">Start Time *</label><input className="input" type="time" value={form.startTime} onChange={e=>set("startTime",e.target.value)}/></div><div className="form-group"><label className="label">End Time *</label><input className="input" type="time" value={form.endTime} onChange={e=>set("endTime",e.target.value)}/></div></div><div className="form-group"><label className="label">Description</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Create"}</button></div></div></div>}
@@ -1726,7 +1726,7 @@ export default function App() {
             {page==="dashboard"&&<Dashboard data={data} library={library} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
             {page==="students"&&<Students data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="plans"&&<Plans data={data} reload={reload} readonly={isReadOnly(library)}/>}
-            {page==="shifts"&&<Shifts data={data} reload={reload}/>}
+            {page==="shifts"&&<Shifts data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="subscriptions"&&<Subscriptions data={data} library={library} reload={reload} prefill={subPrefill} onClearPrefill={()=>setSubPrefill(null)} readonly={isReadOnly(library)}/>}
             {page==="seats"&&<SeatsPage data={data} library={library} reload={reload} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
             {page==="reminders"&&<Reminders data={data} reload={reload} readonly={isReadOnly(library)}/>}
