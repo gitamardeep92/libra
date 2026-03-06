@@ -718,6 +718,217 @@ function Coupons() {
   );
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TOOLS
+// ══════════════════════════════════════════════════════════════════════════════
+function Tools() {
+  const [expiring, setExpiring]   = useState([]);
+  const [neverPaid, setNeverPaid] = useState([]);
+  const [revenue, setRevenue]     = useState(null);
+  const [notes, setNotes]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [extendModal, setExtendModal] = useState(null);
+  const [extendDays, setExtendDays]   = useState("30");
+  const [extendSaving, setExtendSaving] = useState(false);
+  const [newNote, setNewNote]     = useState("");
+  const [expiryDays, setExpiryDays] = useState(7);
+  const [success, setSuccess]     = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [e, n, r, no] = await Promise.all([
+        api.tools.expiring(expiryDays),
+        api.tools.neverPaid(),
+        api.tools.revenue(),
+        api.tools.notes(),
+      ]);
+      setExpiring(e); setNeverPaid(n); setRevenue(r); setNotes(no);
+    } finally { setLoading(false); }
+  };
+
+  useEffect(()=>{ load(); }, [expiryDays]);
+
+  const extend = async () => {
+    if (!extendDays) return;
+    setExtendSaving(true);
+    try {
+      await api.tools.extend({ libraryId: extendModal.id, days: parseInt(extendDays), reason:"Admin extension" });
+      setSuccess(`Extended ${extendModal.library_name} by ${extendDays} days`);
+      setExtendModal(null); load();
+      setTimeout(()=>setSuccess(""),4000);
+    } finally { setExtendSaving(false); }
+  };
+
+  const addNote = async () => {
+    if (!newNote.trim()) return;
+    await api.tools.addNote({ content: newNote });
+    setNewNote(""); load();
+  };
+
+  const delNote = async (id) => {
+    await api.tools.delNote(id);
+    load();
+  };
+
+  const waLink = (lib, msg) => {
+    const text = msg || `Hi ${lib.owner_name}, this is a reminder from LibraryDesk regarding your library account "${lib.library_name}". Please contact us to continue.`;
+    return `https://wa.me/${lib.email.includes('@') ? '' : lib.email}?text=${encodeURIComponent(text)}`;
+  };
+
+  const mom = revenue ? ((Number(revenue.this_month) - Number(revenue.last_month)) / Math.max(Number(revenue.last_month),1) * 100).toFixed(0) : 0;
+
+  return (
+    <div>
+      {success && <div className="alert alert-success" style={{marginBottom:16}}><Icon name="check" size={14}/>{success}</div>}
+
+      {/* ── Revenue Snapshot ── */}
+      <div className="stats-grid" style={{marginBottom:20}}>
+        <div className="stat gold">
+          <div className="stat-label">This Month</div>
+          <div className="stat-value">{fmt(revenue?.this_month)}</div>
+          <div className="stat-sub">{revenue?.payments_this_month||0} payments</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Last Month</div>
+          <div className="stat-value">{fmt(revenue?.last_month)}</div>
+          <div className="stat-sub">{revenue?.payments_last_month||0} payments</div>
+        </div>
+        <div className={`stat ${Number(mom)>=0?"green":"red"}`}>
+          <div className="stat-label">MoM Growth</div>
+          <div className="stat-value">{Number(mom)>=0?"+":""}{mom}%</div>
+          <div className="stat-sub">vs last month</div>
+        </div>
+        <div className="stat accent">
+          <div className="stat-label">This Year</div>
+          <div className="stat-value">{fmt(revenue?.this_year)}</div>
+          <div className="stat-sub">Total 2025</div>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{marginBottom:16}}>
+        {/* ── Expiring Soon ── */}
+        <div className="card">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div className="section-title" style={{margin:0}}>⚠️ Expiring Subscriptions</div>
+            <select className="input" style={{width:"auto",padding:"4px 10px",fontSize:12}}
+              value={expiryDays} onChange={e=>setExpiryDays(e.target.value)}>
+              {[7,14,30].map(d=><option key={d} value={d}>Next {d} days</option>)}
+            </select>
+          </div>
+          {loading ? <Spinner/> : expiring.length===0
+            ? <div className="empty" style={{padding:"24px 0"}}><div className="empty-icon">🎉</div><div style={{fontSize:13}}>No subscriptions expiring in {expiryDays} days</div></div>
+            : expiring.map(l=>(
+              <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--border)",gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.library_name}</div>
+                  <div className="text-xs text-muted">{l.plan_name} · expires {fmtDate(l.current_period_end)}</div>
+                </div>
+                <span className={`badge ${l.days_left<=3?"badge-red":"badge-yellow"}`}>{l.days_left}d left</span>
+                <div className="flex gap-2">
+                  <a href={`https://wa.me/91${l.email}`} target="_blank" rel="noreferrer"
+                    style={{width:28,height:28,background:"#25D366",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none",fontSize:13}}>💬</a>
+                  <button className="btn btn-secondary btn-sm" onClick={()=>setExtendModal(l)}>Extend</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* ── Never Paid / Leads ── */}
+        <div className="card">
+          <div className="section-title" style={{marginBottom:14}}>🎯 Trial / Never Paid</div>
+          {loading ? <Spinner/> : neverPaid.length===0
+            ? <div className="empty" style={{padding:"24px 0"}}><div className="empty-icon">✅</div><div style={{fontSize:13}}>Everyone has paid!</div></div>
+            : neverPaid.slice(0,8).map(l=>(
+              <div key={l.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--border)",gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l.library_name}</div>
+                  <div className="text-xs text-muted">{l.owner_name} · {l.days_since_signup}d ago</div>
+                </div>
+                {statusBadge(l.subscription_status)}
+                <a href={`https://wa.me/917844913738?text=${encodeURIComponent(`Hi! Following up on your LibraryDesk trial for "${l.library_name}". Would you like to activate your account? We have special offers available!`)}`}
+                  target="_blank" rel="noreferrer"
+                  style={{width:28,height:28,background:"#25D366",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none",fontSize:13,flexShrink:0}}>💬</a>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* ── Quick Actions ── */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="section-title" style={{marginBottom:14}}>⚡ Quick Actions</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+          {[
+            { label:"View All Libraries",  icon:"users",   action:()=>window.location.hash="#libraries" },
+            { label:"Record Payment",      icon:"payment", action:()=>document.querySelector('[data-page=payments]')?.click() },
+            { label:"Create Coupon",       icon:"coupon",  action:()=>document.querySelector('[data-page=coupons]')?.click() },
+            { label:"LibraryDesk Website", icon:"link",    action:()=>window.open("https://www.librarydesk.in","_blank") },
+            { label:"App Dashboard",       icon:"link",    action:()=>window.open("https://app.librarydesk.in","_blank") },
+            { label:"WhatsApp Support",    icon:"plan",    action:()=>window.open("https://wa.me/917844913738","_blank") },
+          ].map((a,i)=>(
+            <button key={i} className="btn btn-secondary" style={{justifyContent:"flex-start",gap:8,padding:"10px 14px"}} onClick={a.action}>
+              <Icon name={a.icon} size={14}/>{a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Sticky Notes ── */}
+      <div className="card">
+        <div className="section-title" style={{marginBottom:14}}>📝 Business Notes</div>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <input className="input" style={{flex:1}} placeholder="Add a note — follow ups, reminders, ideas…"
+            value={newNote} onChange={e=>setNewNote(e.target.value)}
+            onKeyDown={e=>e.key==="Enter"&&addNote()}/>
+          <button className="btn btn-primary" onClick={addNote}><Icon name="plus" size={14}/>Add</button>
+        </div>
+        {notes.length===0 ? <div className="text-muted text-sm">No notes yet</div> :
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {notes.map(n=>(
+              <div key={n.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
+                <span style={{fontSize:14,marginTop:1}}>📌</span>
+                <div style={{flex:1,fontSize:13,lineHeight:1.6}}>{n.content}</div>
+                <div style={{fontSize:11,color:"var(--text3)",flexShrink:0,marginTop:1}}>{fmtDate(n.created_at)}</div>
+                <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>delNote(n.id)} style={{color:"var(--red)",flexShrink:0}}>
+                  <Icon name="x" size={13}/>
+                </button>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
+      {/* ── Extend Modal ── */}
+      {extendModal && <div className="modal-overlay"><div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">Extend Subscription</div>
+          <button className="btn btn-ghost btn-icon" onClick={()=>setExtendModal(null)}><Icon name="x" size={16}/></button>
+        </div>
+        <div className="modal-body">
+          <div style={{marginBottom:16}}>
+            <div style={{fontWeight:700}}>{extendModal.library_name}</div>
+            <div className="text-sm text-muted">{extendModal.owner_name} · Expires {fmtDate(extendModal.current_period_end)}</div>
+          </div>
+          <div className="form-group">
+            <label className="label">Extend by (days)</label>
+            <select className="input" value={extendDays} onChange={e=>setExtendDays(e.target.value)}>
+              {["7","14","30","60","90","365"].map(d=><option key={d} value={d}>{d} days</option>)}
+            </select>
+          </div>
+          <div className="alert alert-warn"><Icon name="warn" size={13}/>This extends without recording a payment. Use Record Payment for paid extensions.</div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={()=>setExtendModal(null)}>Cancel</button>
+          <button className="btn btn-primary" onClick={extend} disabled={extendSaving}>{extendSaving&&<Spinner/>}Extend</button>
+        </div>
+      </div></div>}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // REPORTS
 // ══════════════════════════════════════════════════════════════════════════════
@@ -860,12 +1071,13 @@ export default function App() {
     { id:"coupons",   icon:"coupon",    label:"Coupons",    section:"manage" },
     { id:"plans",     icon:"plan",      label:"SaaS Plans", section:"manage" },
     { id:"reports",   icon:"chart",     label:"Reports",    section:"manage" },
+  { id:"tools",     icon:"plan",      label:"Tools",      section:"manage" },
   ];
 
-  const titles = { dashboard:"Dashboard", libraries:"Libraries", payments:"Payments", coupons:"Coupons", plans:"SaaS Plans", reports:"Reports" };
-  const subs   = { dashboard:"Overview & metrics", libraries:"Manage library accounts", payments:"Track & record payments", coupons:"Discount codes", plans:"Subscription plans", reports:"Analytics & insights" };
+  const titles = { dashboard:"Dashboard", libraries:"Libraries", payments:"Payments", coupons:"Coupons", plans:"SaaS Plans", reports:"Reports", tools:"Tools" };
+  const subs   = { dashboard:"Overview & metrics", libraries:"Manage library accounts", payments:"Track & record payments", coupons:"Discount codes", plans:"Subscription plans", reports:"Analytics & insights", tools:"Expiring, leads & quick actions" };
 
-  const pages = { dashboard:<Dashboard/>, libraries:<Libraries/>, payments:<Payments/>, coupons:<Coupons/>, plans:<Plans/>, reports:<Reports/> };
+  const pages = { dashboard:<Dashboard/>, libraries:<Libraries/>, payments:<Payments/>, coupons:<Coupons/>, plans:<Plans/>, reports:<Reports/>, tools:<Tools/> };
 
   return (
     <>

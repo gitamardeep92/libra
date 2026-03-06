@@ -494,3 +494,110 @@ router.get('/invoices', adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TOOLS — Business operations helpers
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/tools/expiring  — Libraries expiring in next N days
+router.get('/tools/expiring', adminAuth, async (req, res) => {
+  const { days = 7 } = req.query;
+  try {
+    const r = await pool.query(`
+      SELECT l.id, l.library_name, l.owner_name, l.email, l.subscription_status,
+             ss.current_period_end, ss.plan_name,
+             EXTRACT(DAY FROM ss.current_period_end - NOW())::int AS days_left
+      FROM libraries l
+      JOIN saas_subscriptions ss ON ss.library_id = l.id
+      WHERE l.subscription_status = 'active'
+        AND ss.current_period_end BETWEEN NOW() AND NOW() + ($1 || ' days')::interval
+        AND ss.status = 'active'
+      ORDER BY ss.current_period_end ASC
+    `, [days]);
+    res.json(r.rows);
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/admin/tools/never-paid  — Libraries still on trial, never paid
+router.get('/tools/never-paid', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT l.id, l.library_name, l.owner_name, l.email,
+             l.subscription_status, l.trial_ends_at, l.created_at,
+             EXTRACT(DAY FROM NOW() - l.created_at)::int AS days_since_signup
+      FROM libraries l
+      WHERE NOT EXISTS (
+        SELECT 1 FROM saas_payments sp WHERE sp.library_id = l.id AND sp.status = 'paid'
+      )
+      ORDER BY l.created_at DESC
+    `);
+    res.json(r.rows);
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/admin/tools/revenue-summary  — Quick revenue snapshot
+router.get('/tools/revenue-summary', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        COALESCE(SUM(amount) FILTER (WHERE paid_at >= DATE_TRUNC('month', NOW())), 0)                    AS this_month,
+        COALESCE(SUM(amount) FILTER (WHERE paid_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                                      AND paid_at < DATE_TRUNC('month', NOW())), 0)                       AS last_month,
+        COALESCE(SUM(amount) FILTER (WHERE paid_at >= DATE_TRUNC('year', NOW())), 0)                     AS this_year,
+        COUNT(*) FILTER (WHERE paid_at >= DATE_TRUNC('month', NOW()))                                    AS payments_this_month,
+        COUNT(*) FILTER (WHERE paid_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+                           AND paid_at < DATE_TRUNC('month', NOW()))                                     AS payments_last_month
+      FROM saas_payments WHERE status = 'paid'
+    `);
+    res.json(r.rows[0]);
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/admin/tools/extend  — Extend a library's subscription by N days
+router.post('/tools/extend', adminAuth, async (req, res) => {
+  const { libraryId, days, reason } = req.body;
+  if (!libraryId || !days) return res.status(400).json({ error: 'libraryId and days required' });
+  try {
+    await pool.query(`
+      UPDATE saas_subscriptions
+      SET current_period_end = current_period_end + ($1 || ' days')::interval, updated_at = NOW()
+      WHERE library_id = $2 AND status = 'active'
+    `, [days, libraryId]);
+    await pool.query(`UPDATE libraries SET subscription_status='active', is_active=TRUE WHERE id=$1`, [libraryId]);
+    res.json({ success: true, message: `Extended by ${days} days` });
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/admin/tools/broadcast-note  — Save a broadcast note (internal)
+router.get('/tools/notes', adminAuth, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT * FROM admin_notes ORDER BY created_at DESC LIMIT 50
+    `);
+    res.json(r.rows);
+  } catch { res.json([]); }
+});
+
+router.post('/tools/notes', adminAuth, async (req, res) => {
+  const { content, type } = req.body;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        content TEXT NOT NULL,
+        type VARCHAR(50) DEFAULT 'note',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    const r = await pool.query(
+      `INSERT INTO admin_notes (content, type) VALUES ($1, $2) RETURNING *`,
+      [content, type || 'note']
+    );
+    res.status(201).json(r.rows[0]);
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/tools/notes/:id', adminAuth, async (req, res) => {
+  await pool.query('DELETE FROM admin_notes WHERE id=$1', [req.params.id]);
+  res.json({ deleted: true });
+});

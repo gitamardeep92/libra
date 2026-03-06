@@ -981,111 +981,131 @@ function TrialBanner({ library, onOpenBilling }) {
 function Billing({ library }) {
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
-  const WA_NUMBER = "917844913738"; // ← update with real number
+  const WA_NUMBER = "917844913738";
 
   useEffect(() => {
     api.auth.billing().then(setBilling).catch(()=>{}).finally(()=>setLoading(false));
   }, []);
 
-  const daysLeft  = getTrialDaysLeft(library);
-  const readonly  = isReadOnly(library);
-  const status    = library?.subscription_status;
+  const daysLeft = getTrialDaysLeft(library);
+  const status   = library?.subscription_status;
+  const isActive = status === "active";
+  const sub      = billing?.subscription;
 
   const waMsg = (plan) => `Hi LibraryDesk Team! I would like to activate my library "${library?.library_name}" on the ${plan} plan. Please help me with the payment process.`;
   const waUrl = (plan) => `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(waMsg(plan))}`;
 
   return (
     <div>
-      {/* Status Card */}
-      <div className="card" style={{marginBottom:16,borderColor:readonly?"var(--red)":status==="active"?"var(--green)":"var(--accent)"}}>
+      {/* ── Status Card ── */}
+      <div className="card" style={{marginBottom:16,borderColor:isActive?"var(--green)":isReadOnly(library)?"var(--red)":"var(--accent)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             <div style={{
-              width:52,height:52,borderRadius:14,
-              background: status==="active"?"var(--green-dim)":readonly?"var(--red-dim)":"var(--accent-dim)",
-              border:`1px solid ${status==="active"?"var(--green)":readonly?"var(--red)":"var(--accent)"}`,
-              display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,
+              width:56,height:56,borderRadius:14,fontSize:26,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              background:isActive?"var(--green-dim)":isReadOnly(library)?"var(--red-dim)":"var(--accent-dim)",
+              border:`1px solid ${isActive?"var(--green)":isReadOnly(library)?"var(--red)":"var(--accent)"}`,
             }}>
-              {status==="active"?"✅":readonly?"🔒":"⏳"}
+              {isActive?"✅":isReadOnly(library)?"🔒":"⏳"}
             </div>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>
-                {status==="active" ? "Account Active" : readonly ? "Account Restricted" : "Free Trial"}
+              <div style={{fontWeight:700,fontSize:17}}>
+                {isActive ? "Account Active" : isReadOnly(library) ? "Account Restricted" : "Free Trial"}
               </div>
-              <div style={{fontSize:13,color:"var(--text3)",marginTop:3}}>
-                {status==="active" && billing?.subscription?.current_period_end &&
-                  `Active until ${formatDate(billing.subscription.current_period_end)}`}
-                {status==="trial" && daysLeft!==null && daysLeft>=0 &&
-                  `${daysLeft} day${daysLeft===1?"":"s"} remaining in your free trial`}
-                {status==="trial" && daysLeft!==null && daysLeft<0 &&
-                  "Your free trial has ended"}
+              <div style={{fontSize:13,color:"var(--text3)",marginTop:4}}>
+                {isActive && sub?.current_period_end && `Plan: ${sub.plan_name} · Active until ${formatDate(sub.current_period_end)}`}
+                {isActive && !sub?.current_period_end && `Plan: ${sub?.plan_name||"Active"}`}
+                {status==="trial" && daysLeft!==null && daysLeft>=0 && `${daysLeft} day${daysLeft===1?"":"s"} remaining in your free trial`}
+                {status==="trial" && daysLeft!==null && daysLeft<0 && "Your free trial has ended"}
                 {status==="expired" && "Your subscription has expired"}
                 {status==="suspended" && "Your account has been suspended — contact support"}
               </div>
             </div>
           </div>
-          {status==="active" && (
-            <span className="badge badge-green" style={{fontSize:13,padding:"6px 14px"}}>
-              {billing?.subscription?.plan_name || "Active Plan"}
-            </span>
+          {isActive && (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+              <span className="badge badge-green" style={{fontSize:13,padding:"6px 14px"}}>{sub?.plan_name||"Active"}</span>
+              {sub?.current_period_end && (
+                <span style={{fontSize:11,color:"var(--text3)"}}>
+                  Renews {formatDate(sub.current_period_end)}
+                </span>
+              )}
+            </div>
           )}
         </div>
+
+        {/* Active plan — renewal CTA */}
+        {isActive && (
+          <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:13,color:"var(--text3)"}}>
+              Want to upgrade or renew early?
+              <a href="https://www.librarydesk.in/#pricing" target="_blank" rel="noreferrer"
+                style={{color:"var(--accent2)",marginLeft:6,textDecoration:"none",fontWeight:600}}>
+                View all plans →
+              </a>
+            </div>
+            <a href={waUrl("renewal/upgrade")} target="_blank" rel="noreferrer"
+              style={{display:"inline-flex",alignItems:"center",gap:6,background:"#25D366",color:"#fff",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8,textDecoration:"none"}}>
+              💬 Contact us on WhatsApp
+            </a>
+          </div>
+        )}
       </div>
 
-      {/* Plans */}
-      <div className="section-title" style={{marginBottom:12}}>Choose a Plan</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14,marginBottom:24}}>
-        {/* Monthly */}
-        <div className="card" style={{borderColor:"var(--accent)",position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,var(--accent),var(--accent2))"}}/> 
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-            <span className="badge badge-accent">Most Popular</span>
-            {status==="active" && billing?.subscription?.plan_name==="Monthly" &&
-              <span className="badge badge-green">Current</span>}
-          </div>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Monthly Plan</div>
-          <div style={{fontSize:32,fontWeight:800,color:"var(--accent)",marginBottom:4}}>₹1,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/month</span></div>
-          <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Full access · Cancel anytime</div>
-          <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-            {["Unlimited students","All features","Seat map & shifts","WhatsApp reminders","Priority support"].map(f=>(
-              <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
-                <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
-              </li>
-            ))}
-          </ul>
-          <a href={waUrl("Monthly ₹1,000/month")} target="_blank" rel="noreferrer"
-            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
-            💬 Activate via WhatsApp
+      {/* ── Plans (only show when NOT active) ── */}
+      {!isActive && (<>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <div className="section-title" style={{margin:0}}>Choose a Plan</div>
+          <a href="https://www.librarydesk.in/#pricing" target="_blank" rel="noreferrer"
+            style={{fontSize:12,color:"var(--accent2)",textDecoration:"none",fontWeight:600}}>
+            See full plan details on website →
           </a>
         </div>
-
-        {/* Annual */}
-        <div className="card" style={{borderColor:"var(--gold)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-            <span className="badge badge-gold">Save ₹3,000</span>
-            {status==="active" && billing?.subscription?.plan_name==="Annual" &&
-              <span className="badge badge-green">Current</span>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:14,marginBottom:24}}>
+          {/* Monthly */}
+          <div className="card" style={{borderColor:"var(--accent)",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,var(--accent),var(--accent2))"}}/> 
+            <span className="badge badge-accent" style={{marginBottom:12,display:"inline-block"}}>Most Popular</span>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Monthly Plan</div>
+            <div style={{fontSize:32,fontWeight:800,color:"var(--accent)",marginBottom:4}}>₹1,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/month</span></div>
+            <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Full access · Cancel anytime</div>
+            <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+              {["Unlimited students","All features included","Seat map & shifts","WhatsApp reminders","Priority support"].map(f=>(
+                <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
+                  <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
+                </li>
+              ))}
+            </ul>
+            <a href={waUrl("Monthly ₹1,000/month")} target="_blank" rel="noreferrer"
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
+              💬 Activate via WhatsApp
+            </a>
           </div>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Annual Plan</div>
-          <div style={{fontSize:32,fontWeight:800,color:"var(--gold)",marginBottom:4}}>₹9,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/year</span></div>
-          <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Best value · ₹750/month effective</div>
-          <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-            {["Everything in Monthly","Save ₹3,000/year","Dedicated support","Setup assistance","Invoice & GST receipt"].map(f=>(
-              <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
-                <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
-              </li>
-            ))}
-          </ul>
-          <a href={waUrl("Annual ₹9,000/year")} target="_blank" rel="noreferrer"
-            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
-            💬 Activate via WhatsApp
-          </a>
+          {/* Annual */}
+          <div className="card" style={{borderColor:"var(--gold)"}}>
+            <span className="badge badge-gold" style={{marginBottom:12,display:"inline-block"}}>Save ₹3,000</span>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Annual Plan</div>
+            <div style={{fontSize:32,fontWeight:800,color:"var(--gold)",marginBottom:4}}>₹9,000<span style={{fontSize:13,fontWeight:400,color:"var(--text3)"}}>/year</span></div>
+            <div style={{fontSize:13,color:"var(--text3)",marginBottom:16}}>Best value · ₹750/month effective</div>
+            <ul style={{listStyle:"none",display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+              {["Everything in Monthly","Save ₹3,000/year","Dedicated support","Setup assistance","Invoice & GST receipt"].map(f=>(
+                <li key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--text2)"}}>
+                  <span style={{color:"var(--green)",fontWeight:800}}>✓</span>{f}
+                </li>
+              ))}
+            </ul>
+            <a href={waUrl("Annual ₹9,000/year")} target="_blank" rel="noreferrer"
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#25D366",color:"#fff",fontWeight:700,fontSize:14,padding:"11px",borderRadius:9,textDecoration:"none"}}>
+              💬 Activate via WhatsApp
+            </a>
+          </div>
         </div>
-      </div>
+      </>)}
 
-      {/* Payment History */}
+      {/* ── Payment History ── */}
       {loading ? <Spinner size={20}/> : billing?.payments?.length > 0 && (
-        <div className="card">
+        <div className="card" style={{marginBottom:16}}>
           <div className="section-title" style={{marginBottom:12}}>Payment History</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -1095,8 +1115,8 @@ function Billing({ library }) {
                 ))}</tr>
               </thead>
               <tbody>
-                {billing.payments.map(p=>(
-                  <tr key={p.id}>
+                {billing.payments.map((p,i)=>(
+                  <tr key={i} style={{borderBottom:"1px solid var(--border)"}}>
                     <td style={{padding:"10px 12px",fontSize:13,fontWeight:600}}>{p.plan_name||"—"}</td>
                     <td style={{padding:"10px 12px",fontSize:13,color:"var(--green)",fontWeight:700}}>₹{Number(p.amount).toLocaleString("en-IN")}</td>
                     <td style={{padding:"10px 12px"}}><span className="badge badge-gray" style={{textTransform:"capitalize",fontSize:11}}>{p.payment_method}</span></td>
@@ -1110,15 +1130,15 @@ function Billing({ library }) {
         </div>
       )}
 
-      {/* Contact info */}
-      <div style={{marginTop:16,padding:"14px 16px",background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:10,display:"flex",alignItems:"center",gap:12}}>
+      {/* ── Help ── */}
+      <div style={{padding:"14px 16px",background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <span style={{fontSize:20}}>💬</span>
-        <div>
-          <div style={{fontWeight:700,fontSize:13,color:"var(--accent2)"}}>Need help? Contact us on WhatsApp</div>
-          <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>We'll activate your account within minutes of payment confirmation.</div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--accent2)"}}>Need help? We're on WhatsApp</div>
+          <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Account activated within minutes of payment confirmation.</div>
         </div>
         <a href={`https://wa.me/${WA_NUMBER}`} target="_blank" rel="noreferrer"
-          style={{marginLeft:"auto",flexShrink:0,background:"#25D366",color:"#fff",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8,textDecoration:"none"}}>
+          style={{flexShrink:0,background:"#25D366",color:"#fff",fontWeight:700,fontSize:12,padding:"8px 16px",borderRadius:8,textDecoration:"none"}}>
           Chat Now
         </a>
       </div>
