@@ -336,10 +336,12 @@ router.get('/attendance/qr-info/:token', async (req, res) => {
 
 // PUBLIC: Student check-in — POST /api/attendance/checkin
 router.post('/attendance/checkin', async (req, res) => {
-  const { libraryId, studentId } = req.body;
-  if (!libraryId || !studentId) return res.status(400).json({ error: 'Missing libraryId or studentId' });
+  const { libraryId, phone } = req.body;
+  if (!libraryId || !phone) return res.status(400).json({ error: 'Missing libraryId or phone' });
+  // Normalize phone — strip country code, keep last 10 digits
+  const normalizedPhone = phone.replace(/\D/g,'').slice(-10);
   try {
-    // Verify student belongs to this library and is active
+    // Verify student belongs to this library and is active — match by phone
     const st = await pool.query(
       `SELECT s.id, s.name, s.phone,
               sub.end_date, sub.plan_name, sub.shift_id,
@@ -347,12 +349,13 @@ router.post('/attendance/checkin', async (req, res) => {
        FROM students s
        LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
        LEFT JOIN shifts sh ON sh.id=sub.shift_id
-       WHERE s.id=$2 AND s.library_id=$1 AND s.status='active'`,
-      [libraryId, studentId]
+       WHERE RIGHT(REGEXP_REPLACE(s.phone,'\\D','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
+      [libraryId, normalizedPhone]
     );
     if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
 
     const student = st.rows[0];
+    const studentId = student.id;
 
     // Check if already checked in today (no check-out yet)
     const existing = await pool.query(

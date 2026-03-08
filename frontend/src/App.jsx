@@ -510,7 +510,7 @@ function Attendance({ library }) {
   const [toDate, setToDate]     = useState(new Date().toISOString().slice(0,10));
   const [summaryMonth, setSummaryMonth] = useState(new Date().toISOString().slice(0,7));
 
-  const qrUrl = `${window.location.origin}/checkin/${library?.id}`;
+  const qrUrl = `https://libra-backend-gjgo.onrender.com/checkin/${library?.id}`;
 
   const load = async () => {
     setLoading(true);
