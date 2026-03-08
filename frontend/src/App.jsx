@@ -1095,7 +1095,7 @@ function TrialBanner({ library, onOpenBilling }) {
   if (!type || type === 'info') return null;
 
   const daysLeft = getTrialDaysLeft(library);
-  const WA_NUMBER = "917844913738"; // ← update with real number
+  const WA_NUMBER = "919807139295"; // ← update with real number
   const waMsg = `Hi LibraryDesk Team! I would like to activate my library account: ${library?.library_name}. Please help me with the plan options.`;
   const waUrl = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(waMsg)}`;
 
@@ -1156,7 +1156,7 @@ function TrialBanner({ library, onOpenBilling }) {
 function Billing({ library }) {
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(true);
-  const WA_NUMBER = "917844913738";
+  const WA_NUMBER = "919807139295";
 
   useEffect(() => {
     api.auth.billing().then(setBilling).catch(()=>{}).finally(()=>setLoading(false));

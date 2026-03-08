@@ -734,7 +734,7 @@ function Coupons() {
 // ══════════════════════════════════════════════════════════════════════════════
 function Marketing() {
   const UNSPLASH_KEY = import.meta.env.VITE_UNSPLASH_KEY || "";
-  const WA_ME = "917844913738";
+  const WA_ME = "919807139295";
 
   // tabs
   const [tab, setTab] = useState("post"); // post | whatsapp | connect
