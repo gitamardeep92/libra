@@ -264,9 +264,9 @@ router.get('/reports/summary', async (req, res) => {
       `, [libId(req)]),
       pool.query(`
         SELECT
-          COALESCE(SUM(CASE WHEN DATE_TRUNC('month',start_date)=DATE_TRUNC('month',CURRENT_DATE) THEN amount ELSE 0 END),0) AS month_revenue,
-          COALESCE((SELECT SUM(amount) FROM expenses WHERE library_id=$1 AND DATE_TRUNC('month',date)=DATE_TRUNC('month',CURRENT_DATE)),0) AS month_expenses
-        FROM subscriptions WHERE library_id=$1 AND start_date IS NOT NULL
+          COALESCE(SUM(CASE WHEN DATE_TRUNC('month', COALESCE(start_date, created_at::date))=DATE_TRUNC('month',CURRENT_DATE) THEN amount ELSE 0 END),0) AS month_revenue,
+          COALESCE((SELECT SUM(amount) FROM expenses WHERE library_id=$1 AND DATE_TRUNC('month',COALESCE(date, created_at::date))=DATE_TRUNC('month',CURRENT_DATE)),0) AS month_expenses
+        FROM subscriptions WHERE library_id=$1
       `, [libId(req)]),
       pool.query(`
         SELECT sub.*, st.name as student_name, st.phone as student_phone
@@ -277,12 +277,12 @@ router.get('/reports/summary', async (req, res) => {
 
     // Monthly revenue for bar chart (last 6 months)
     const revenueByMonth = await pool.query(`
-      SELECT TO_CHAR(DATE_TRUNC('month',start_date),'Mon') as month,
-             DATE_TRUNC('month',start_date) as month_date,
+      SELECT TO_CHAR(DATE_TRUNC('month',COALESCE(start_date, created_at::date)),'Mon') as month,
+             DATE_TRUNC('month',COALESCE(start_date, created_at::date)) as month_date,
              SUM(amount) as revenue
       FROM subscriptions
-      WHERE library_id=$1 AND start_date >= DATE_TRUNC('month',CURRENT_DATE) - INTERVAL '5 months'
-      GROUP BY DATE_TRUNC('month',start_date)
+      WHERE library_id=$1 AND COALESCE(start_date, created_at::date) >= DATE_TRUNC('month',CURRENT_DATE) - INTERVAL '5 months'
+      GROUP BY DATE_TRUNC('month',COALESCE(start_date, created_at::date))
       ORDER BY month_date
     `, [libId(req)]);
 
@@ -297,6 +297,140 @@ router.get('/reports/summary', async (req, res) => {
     console.error('Reports summary error:', err);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+
+// ── ATTENDANCE ────────────────────────────────────────────────────────────────
+
+// Auto-create attendance table if not exists
+const ensureAttendanceTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS attendance (
+      id SERIAL PRIMARY KEY,
+      library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      check_out TIMESTAMPTZ,
+      date DATE NOT NULL DEFAULT CURRENT_DATE,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`);
+};
+ensureAttendanceTable().catch(console.error);
+
+// PUBLIC: Student check-in via QR (no auth — uses library token in URL)
+// GET /api/attendance/qr-info/:libraryToken  — get library name for QR page
+router.get('/attendance/qr-info/:token', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, library_name, city FROM libraries WHERE id=$1 AND is_active=TRUE`,
+      [req.params.token]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Library not found' });
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PUBLIC: Student check-in — POST /api/attendance/checkin
+router.post('/attendance/checkin', async (req, res) => {
+  const { libraryId, studentId } = req.body;
+  if (!libraryId || !studentId) return res.status(400).json({ error: 'Missing libraryId or studentId' });
+  try {
+    // Verify student belongs to this library and is active
+    const st = await pool.query(
+      `SELECT s.id, s.name, s.phone,
+              sub.end_date, sub.plan_name, sub.shift_id,
+              sh.name as shift_name
+       FROM students s
+       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+       LEFT JOIN shifts sh ON sh.id=sub.shift_id
+       WHERE s.id=$2 AND s.library_id=$1 AND s.status='active'`,
+      [libraryId, studentId]
+    );
+    if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
+
+    const student = st.rows[0];
+
+    // Check if already checked in today (no check-out yet)
+    const existing = await pool.query(
+      `SELECT id FROM attendance WHERE library_id=$1 AND student_id=$2 AND date=CURRENT_DATE AND check_out IS NULL`,
+      [libraryId, studentId]
+    );
+
+    if (existing.rows.length) {
+      // Already checked in — do check-out
+      await pool.query(
+        `UPDATE attendance SET check_out=NOW() WHERE id=$1`,
+        [existing.rows[0].id]
+      );
+      return res.json({ action: 'checkout', student, message: `Goodbye ${student.name}! See you soon.` });
+    }
+
+    // Check-in
+    await pool.query(
+      `INSERT INTO attendance(library_id, student_id, date) VALUES($1,$2,CURRENT_DATE)`,
+      [libraryId, studentId]
+    );
+    res.json({ action: 'checkin', student, message: `Welcome ${student.name}!` });
+  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
+});
+
+// PRIVATE: Get today's attendance
+router.get('/attendance/today', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT a.*, s.name as student_name, s.phone as student_phone,
+             sh.name as shift_name
+      FROM attendance a
+      JOIN students s ON s.id=a.student_id
+      LEFT JOIN subscriptions sub ON sub.student_id=a.student_id AND sub.library_id=a.library_id AND sub.status='active'
+      LEFT JOIN shifts sh ON sh.id=sub.shift_id
+      WHERE a.library_id=$1 AND a.date=CURRENT_DATE
+      ORDER BY a.check_in DESC
+    `, [libId(req)]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PRIVATE: Get attendance by date range
+router.get('/attendance', async (req, res) => {
+  const { from, to, studentId } = req.query;
+  try {
+    let q = `
+      SELECT a.*, s.name as student_name, s.phone as student_phone
+      FROM attendance a JOIN students s ON s.id=a.student_id
+      WHERE a.library_id=$1
+    `;
+    const params = [libId(req)];
+    if (from) { params.push(from); q += ` AND a.date >= $${params.length}`; }
+    if (to)   { params.push(to);   q += ` AND a.date <= $${params.length}`; }
+    if (studentId) { params.push(studentId); q += ` AND a.student_id=$${params.length}`; }
+    q += ' ORDER BY a.check_in DESC LIMIT 200';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PRIVATE: Monthly attendance summary per student
+router.get('/attendance/summary', async (req, res) => {
+  const { month } = req.query; // YYYY-MM
+  try {
+    const r = await pool.query(`
+      SELECT s.id, s.name, s.phone,
+             COUNT(a.id) as days_present,
+             SUM(CASE WHEN a.check_out IS NOT NULL THEN EXTRACT(EPOCH FROM (a.check_out - a.check_in))/3600 ELSE 0 END)::numeric(10,1) as total_hours
+      FROM students s
+      LEFT JOIN attendance a ON a.student_id=s.id AND a.library_id=$1
+        AND TO_CHAR(a.date,'YYYY-MM')=COALESCE($2, TO_CHAR(CURRENT_DATE,'YYYY-MM'))
+      WHERE s.library_id=$1 AND s.status='active'
+      GROUP BY s.id, s.name, s.phone
+      ORDER BY days_present DESC
+    `, [libId(req), month || null]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 module.exports = router;

@@ -54,7 +54,7 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
   const icons = {
     book:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
     users:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-    dollar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12M6 8h12M6 13h8a5 5 0 0 0 0-10M6 21l8-8"/></svg>,
+    dollar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12M6 8h12M6 13h8a5 5 0 0 0 0-10"/><path d="M6 21l6-8"/></svg>,
     payment: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
     bell:   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
     chart:  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
@@ -499,6 +499,243 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
 
 
 // ─── MARKETING PAGE ───────────────────────────────────────────────────────────
+// ─── ATTENDANCE PAGE ──────────────────────────────────────────────────────────
+function Attendance({ library }) {
+  const [tab, setTab]           = useState("today");   // today | history | summary | qr
+  const [today, setToday]       = useState([]);
+  const [history, setHistory]   = useState([]);
+  const [summary, setSummary]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [fromDate, setFromDate] = useState(new Date(Date.now()-7*86400000).toISOString().slice(0,10));
+  const [toDate, setToDate]     = useState(new Date().toISOString().slice(0,10));
+  const [summaryMonth, setSummaryMonth] = useState(new Date().toISOString().slice(0,7));
+
+  const qrUrl = `${window.location.origin}/checkin/${library?.id}`;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      if (tab==="today")   { const r = await api.attendance.today(); setToday(r); }
+      if (tab==="history") { const r = await api.attendance.history({ from:fromDate, to:toDate }); setHistory(r); }
+      if (tab==="summary") { const r = await api.attendance.summary(summaryMonth); setSummary(r); }
+    } catch(e){ console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(()=>{ load(); },[tab, fromDate, toDate, summaryMonth]);
+
+  const durStr = (checkIn, checkOut) => {
+    if (!checkOut) return <span style={{color:"var(--green)",fontWeight:600}}>● In</span>;
+    const mins = Math.round((new Date(checkOut)-new Date(checkIn))/60000);
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins/60)}h ${mins%60}m`;
+  };
+
+  const tabBtn = (id, label) => (
+    <button onClick={()=>setTab(id)} style={{
+      padding:"9px 18px", border:"none", borderRadius:8, cursor:"pointer",
+      fontWeight:600, fontSize:13,
+      background: tab===id ? "var(--accent-dim)" : "transparent",
+      color: tab===id ? "var(--accent2)" : "var(--text3)",
+      borderBottom: tab===id ? "2px solid var(--accent)" : "2px solid transparent",
+    }}>{label}</button>
+  );
+
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-header-left"><h1>Attendance</h1><p>QR check-in & daily logs</p></div>
+        <button className="btn btn-primary" onClick={()=>setTab("qr")} style={{gap:8}}>
+          <Icon name="qr" size={15}/>Show QR Code
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)"}}>
+        {tabBtn("today",   "📋 Today")}
+        {tabBtn("history", "📅 History")}
+        {tabBtn("summary", "📊 Monthly Summary")}
+        {tabBtn("qr",      "📱 QR Code")}
+      </div>
+
+      {/* ── TODAY ── */}
+      {tab==="today" && (
+        <div>
+          <div style={{display:"flex",gap:12,marginBottom:16}}>
+            <div className="stat-card green" style={{flex:1}}>
+              <div className="stat-label">Currently In</div>
+              <div className="stat-value">{today.filter(a=>!a.check_out).length}</div>
+            </div>
+            <div className="stat-card blue" style={{flex:1}}>
+              <div className="stat-label">Total Today</div>
+              <div className="stat-value">{today.length}</div>
+            </div>
+            <div className="stat-card" style={{flex:1}}>
+              <div className="stat-label">Checked Out</div>
+              <div className="stat-value">{today.filter(a=>a.check_out).length}</div>
+            </div>
+          </div>
+          {loading ? <div style={{textAlign:"center",padding:40}}><Spinner size={28}/></div> :
+            today.length===0 ? (
+              <div className="card"><div className="empty-state">
+                <div className="empty-icon">📋</div>
+                <div className="empty-title">No check-ins today yet</div>
+                <div className="empty-sub">Share the QR code with students to start tracking</div>
+              </div></div>
+            ) : (
+              <div className="card" style={{padding:0}}>
+                <table className="table"><thead><tr>
+                  <th>Student</th><th>Check In</th><th>Check Out</th><th>Duration</th><th>Shift</th>
+                </tr></thead>
+                <tbody>
+                  {today.map(a=>(
+                    <tr key={a.id}>
+                      <td><div style={{fontWeight:600}}>{a.student_name}</div><div className="text-xs text-muted">{a.student_phone}</div></td>
+                      <td className="text-sm">{new Date(a.check_in).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</td>
+                      <td className="text-sm">{a.check_out ? new Date(a.check_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                      <td>{durStr(a.check_in, a.check_out)}</td>
+                      <td>{a.shift_name ? <span className="badge badge-purple" style={{fontSize:11}}>{a.shift_name}</span> : <span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            )
+          }
+        </div>
+      )}
+
+      {/* ── HISTORY ── */}
+      {tab==="history" && (
+        <div>
+          <div className="card" style={{marginBottom:16,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="label">From</label>
+              <input className="input" type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={{width:160}}/>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="label">To</label>
+              <input className="input" type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={{width:160}}/>
+            </div>
+            <button className="btn btn-primary" onClick={load}>Filter</button>
+          </div>
+          {loading ? <div style={{textAlign:"center",padding:40}}><Spinner size={28}/></div> :
+            history.length===0 ? (
+              <div className="card"><div className="empty-state"><div className="empty-icon">📅</div><div className="empty-title">No records found</div></div></div>
+            ) : (
+              <div className="card" style={{padding:0}}>
+                <table className="table"><thead><tr>
+                  <th>Date</th><th>Student</th><th>Check In</th><th>Check Out</th><th>Duration</th>
+                </tr></thead>
+                <tbody>
+                  {history.map(a=>(
+                    <tr key={a.id}>
+                      <td className="text-sm text-muted">{new Date(a.date).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</td>
+                      <td><div style={{fontWeight:600}}>{a.student_name}</div></td>
+                      <td className="text-sm">{new Date(a.check_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td>
+                      <td className="text-sm">{a.check_out ? new Date(a.check_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—"}</td>
+                      <td>{durStr(a.check_in, a.check_out)}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            )
+          }
+        </div>
+      )}
+
+      {/* ── SUMMARY ── */}
+      {tab==="summary" && (
+        <div>
+          <div className="card" style={{marginBottom:16,display:"flex",gap:12,alignItems:"flex-end"}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="label">Month</label>
+              <input className="input" type="month" value={summaryMonth} onChange={e=>setSummaryMonth(e.target.value)} style={{width:180}}/>
+            </div>
+            <button className="btn btn-primary" onClick={load}>Load</button>
+          </div>
+          {loading ? <div style={{textAlign:"center",padding:40}}><Spinner size={28}/></div> :
+            <div className="card" style={{padding:0}}>
+              <table className="table"><thead><tr>
+                <th>Student</th><th>Days Present</th><th>Total Hours</th><th>Attendance %</th>
+              </tr></thead>
+              <tbody>
+                {summary.map(s=>{
+                  const daysInMonth = new Date(summaryMonth.split("-")[0], summaryMonth.split("-")[1], 0).getDate();
+                  const pct = Math.round((s.days_present/daysInMonth)*100);
+                  return (
+                    <tr key={s.id}>
+                      <td><div style={{fontWeight:600}}>{s.name}</div><div className="text-xs text-muted">{s.phone}</div></td>
+                      <td><span className="badge badge-blue">{s.days_present} days</span></td>
+                      <td className="text-sm">{s.total_hours > 0 ? `${s.total_hours}h` : "—"}</td>
+                      <td>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{flex:1,height:6,background:"var(--surface3)",borderRadius:3,overflow:"hidden"}}>
+                            <div style={{width:`${pct}%`,height:"100%",background:pct>=75?"var(--green)":pct>=50?"var(--yellow)":"var(--red)",borderRadius:3,transition:"width .3s"}}/>
+                          </div>
+                          <span style={{fontSize:12,fontWeight:600,minWidth:32,color:pct>=75?"var(--green)":pct>=50?"var(--yellow)":"var(--red)"}}>{pct}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody></table>
+            </div>
+          }
+        </div>
+      )}
+
+      {/* ── QR CODE ── */}
+      {tab==="qr" && (
+        <div style={{maxWidth:480,margin:"0 auto"}}>
+          <div className="card" style={{textAlign:"center",padding:32}}>
+            <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>{library?.library_name}</div>
+            <div style={{color:"var(--text3)",fontSize:13,marginBottom:24}}>Students scan this QR to check in / check out</div>
+
+            {/* QR Code rendered via Google Charts API — works without any library */}
+            <div style={{display:"inline-block",padding:16,background:"white",borderRadius:16,marginBottom:20}}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=000000&margin=10`}
+                alt="QR Code"
+                style={{width:220,height:220,display:"block"}}
+              />
+            </div>
+
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:12,color:"var(--text3)",marginBottom:6}}>Check-in URL</div>
+              <div style={{background:"var(--surface2)",borderRadius:8,padding:"10px 14px",fontSize:12,fontFamily:"monospace",wordBreak:"break-all",color:"var(--accent2)"}}>
+                {qrUrl}
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={()=>{
+                const link = document.createElement("a");
+                link.href = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(qrUrl)}&bgcolor=ffffff&color=000000&margin=20`;
+                link.download = `${library?.library_name}-qr.png`;
+                link.target = "_blank";
+                link.click();
+              }}>⬇️ Download QR</button>
+              <button className="btn btn-secondary" onClick={()=>{
+                navigator.clipboard.writeText(qrUrl);
+                alert("Link copied to clipboard!");
+              }}>📋 Copy Link</button>
+              <a href={qrUrl} target="_blank" rel="noreferrer" className="btn btn-secondary">🔗 Open Page</a>
+            </div>
+
+            <div style={{marginTop:20,padding:"12px 16px",background:"var(--surface2)",borderRadius:10,fontSize:12,color:"var(--text2)",lineHeight:1.8,textAlign:"left"}}>
+              <strong style={{color:"var(--text)"}}>How it works:</strong><br/>
+              1. Print or display this QR in your library<br/>
+              2. Student scans → enters their Student ID<br/>
+              3. First scan = Check In ✅ · Second scan = Check Out 🚪<br/>
+              4. View live log in the "Today" tab
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Marketing({ data, library }) {
   const UNSPLASH_KEY = import.meta.env.VITE_UNSPLASH_KEY || "";
   const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | social
@@ -1058,6 +1295,7 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
     {id:"reminders",icon:"bell",label:"Reminders",section:"manage",badge:urgentReminders>0?urgentReminders:null},
     {id:"expenses",icon:"dollar",label:"Expenses",section:"manage"},
     {id:"reports",icon:"chart",label:"Reports",section:"manage"},
+    {id:"attendance",icon:"attendance",label:"Attendance",section:"manage"},
     {id:"marketing",icon:"megaphone",label:"Marketing",section:"tools"},
     {id:"settings",icon:"settings",label:"Settings",section:"tools"},
     {id:"billing",icon:"payment",label:"Billing & Plans",section:"tools"},
@@ -1346,8 +1584,8 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
       <div className="stats-grid">
         <div className="stat-card blue"><div className="stat-icon"><Icon name="users" size={26} color="var(--blue)"/></div><div className="stat-label">Total Students</div><div className="stat-value">{summary?.total_students||0}</div><div className="stat-change">{summary?.active_students||0} active</div></div>
         <div className="stat-card green"><div className="stat-icon"><Icon name="id" size={26} color="var(--green)"/></div><div className="stat-label">Active Subs</div><div className="stat-value">{summary?.active_subscriptions||0}</div><div className="stat-change" style={{color:Number(summary?.expiring_soon)>0?"var(--yellow)":"var(--text3)"}}>{Number(summary?.expiring_soon)>0?`${summary.expiring_soon} expiring soon`:"All on track"}</div></div>
-        <div className="stat-card gold"><div className="stat-icon"><Icon name="dollar" size={26} color="var(--accent)"/></div><div className="stat-label">Month Revenue</div><div className="stat-value">{formatCurrency(summary?.month_revenue||0)}</div><div className="stat-change">{formatCurrency((summary?.month_revenue||0)-(summary?.month_expenses||0))} net</div></div>
-        <div className="stat-card red"><div className="stat-icon"><Icon name="dollar" size={26} color="var(--red)"/></div><div className="stat-label">Month Expenses</div><div className="stat-value">{formatCurrency(summary?.month_expenses||0)}</div></div>
+        <div className="stat-card gold"><div className="stat-icon"><Icon name="rupee" size={26} color="var(--accent)"/></div><div className="stat-label">Month Revenue</div><div className="stat-value">{formatCurrency(summary?.month_revenue||0)}</div><div className="stat-change">{formatCurrency((summary?.month_revenue||0)-(summary?.month_expenses||0))} net</div></div>
+        <div className="stat-card red"><div className="stat-icon"><Icon name="rupee" size={26} color="var(--red)"/></div><div className="stat-label">Month Expenses</div><div className="stat-value">{formatCurrency(summary?.month_expenses||0)}</div></div>
         <div className="stat-card purple"><div className="stat-icon"><Icon name="seat2" size={26} color="var(--purple)"/></div><div className="stat-label">Seat Status</div><div className="stat-value">{freeCount+halfCount}/{totalSeats}</div><div className="stat-change">{freeCount} free · {halfCount} half</div></div>
         <div className="stat-card gold"><div className="stat-icon"><Icon name="clock" size={26} color="var(--accent)"/></div><div className="stat-label">Shifts</div><div className="stat-value">{data.shifts?.length||0}</div></div>
       </div>
@@ -1870,7 +2108,7 @@ export default function App() {
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
 
-  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"] };
+  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], attendance:["Attendance","& QR Check-in"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"] };
   const [t1,t2] = pageTitle[page] || ["",""];
 
   if (checking) return (
@@ -1927,6 +2165,7 @@ export default function App() {
             {page==="reminders"&&<Reminders data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="expenses"&&<Expenses data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="reports"&&<Reports data={data}/>}
+            {page==="attendance"&&<Attendance library={library}/>}
             {page==="marketing"&&<Marketing data={data} library={library}/>}
             {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
             {page==="billing"&&<Billing library={library}/>}
