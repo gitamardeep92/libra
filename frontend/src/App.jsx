@@ -116,12 +116,13 @@ const styles = `
     --topbar-h:60px;
     --bottom-nav-h:60px;
   }
-  html{scroll-behavior:smooth;}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+  html{scroll-behavior:smooth;overflow-x:hidden;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;max-width:100vw;}
+  #root{overflow-x:hidden;max-width:100vw;}
   ::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 
   /* ── LAYOUT ── */
-  .app{display:flex;min-height:100vh;position:relative;}
+  .app{display:flex;min-height:100vh;position:relative;overflow-x:hidden;max-width:100vw;}
   .sidebar{
     width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);
     display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;
@@ -146,7 +147,7 @@ const styles = `
   .lib-info{display:flex;align-items:center;gap:10px;padding:8px 12px;}
   .lib-avatar{width:32px;height:32px;border-radius:9px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700;font-size:13px;flex-shrink:0;}
   .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:199;backdrop-filter:blur(2px);}
-  .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin 0.25s ease;}
+  .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin 0.25s ease;min-width:0;max-width:100%;}
   .topbar{
     background:var(--surface);border-bottom:1px solid var(--border);
     padding:0 24px;height:var(--topbar-h);
@@ -348,10 +349,13 @@ const styles = `
     .main{margin-left:0;}
 
     /* Topbar */
-    .topbar{padding:0 14px;gap:10px;}
-    .topbar-title{font-size:16px;}
+    .topbar{padding:0 14px;gap:8px;overflow:hidden;}
+    .topbar-title{font-size:15px;}
     .mobile-toggle{display:flex;}
     .search-bar{max-width:100%;flex:1;}
+    .topbar-owner-name{display:none;}
+    .topbar-lib-name{display:none;}
+    .topbar-trial-badge{font-size:10px;padding:2px 6px;}
 
     /* Content */
     .content{padding:14px;padding-bottom:calc(var(--bottom-nav-h) + 14px);}
@@ -2327,11 +2331,11 @@ export default function App() {
         <Sidebar library={library} active={page} onNav={setPage} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders}/>
         <main className="main">
           <div className="topbar">
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1}}>
               <button className="btn btn-ghost btn-icon mobile-toggle" onClick={()=>setSidebarOpen(!sidebarOpen)}><Icon name="menu" size={20}/></button>
-              <div>
-                <div style={{fontSize:11.5,color:"var(--text3)",fontWeight:500,textTransform:"uppercase",letterSpacing:1}}>{library.library_name}</div>
-                <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:19,lineHeight:1.2}}>{t1} <span style={{color:"var(--accent)"}}>{t2}</span></h1>
+              <div style={{minWidth:0,overflow:"hidden"}}>
+                <div className="topbar-lib-name" style={{fontSize:11,color:"var(--text3)",fontWeight:500,textTransform:"uppercase",letterSpacing:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{library.library_name}</div>
+                <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:17,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t1} <span style={{color:"var(--accent)"}}>{t2}</span></h1>
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
