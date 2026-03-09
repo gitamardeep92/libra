@@ -237,7 +237,8 @@ const styles = `
   .select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
   .textarea{resize:vertical;min-height:76px;}
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  input[type="date"],input[type="time"],input[type="month"]{-webkit-appearance:none;appearance:none;color:var(--text);background:var(--surface2);cursor:pointer;}
+  input[type="date"],input[type="time"],input[type="month"]{-webkit-appearance:none;appearance:none;color:var(--text);background:var(--surface2);cursor:pointer;min-width:0;width:100%;}
+  input[type="time"]{min-width:130px;letter-spacing:0.5px;}
   input[type="date"]::-webkit-calendar-picker-indicator,input[type="time"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{filter:invert(0.6);cursor:pointer;}
 
   /* ── MODAL ── */
@@ -312,15 +313,31 @@ const styles = `
   .font-bold{font-weight:700;}.font-600{font-weight:600;}
   .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:400;}
 
-  /* ── PWA INSTALL PROMPT ── */
-  .pwa-banner{
-    position:fixed;bottom:calc(var(--bottom-nav-h) + 8px);left:12px;right:12px;
-    background:var(--surface);border:1px solid var(--accent);border-radius:14px;
-    padding:14px 16px;display:flex;align-items:center;gap:12px;
-    z-index:500;box-shadow:0 8px 32px rgba(0,0,0,0.4);
-    animation:slideUp 0.3s ease;
+  /* ── PWA INSTALL FLOATING BUTTON ── */
+  .pwa-fab{
+    position:fixed;bottom:calc(var(--bottom-nav-h) + 16px);right:16px;
+    width:48px;height:48px;border-radius:50%;
+    background:var(--accent);color:#0a0c10;
+    border:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(232,168,56,0.5);
+    z-index:500;animation:fadeIn 0.3s ease;
+    transition:transform 0.2s ease,box-shadow 0.2s ease;
   }
-  .pwa-banner-hide{display:none;}
+  .pwa-fab:hover{transform:scale(1.1);box-shadow:0 6px 22px rgba(232,168,56,0.65);}
+  .pwa-fab:active{transform:scale(0.95);}
+  .pwa-fab-tooltip{
+    position:fixed;bottom:calc(var(--bottom-nav-h) + 22px);right:72px;
+    background:var(--surface);border:1px solid var(--border2);
+    padding:7px 12px;border-radius:8px;font-size:12px;font-weight:600;
+    white-space:nowrap;pointer-events:none;
+    box-shadow:0 4px 14px rgba(0,0,0,0.3);
+    animation:fadeIn 0.2s ease;
+  }
+  @media(max-width:768px){
+    .pwa-fab{bottom:calc(var(--bottom-nav-h) + 12px);right:12px;}
+    .pwa-fab-tooltip{bottom:calc(var(--bottom-nav-h) + 18px);right:68px;}
+  }
 
   /* ══════════════════════════════
      TABLET (768px – 1024px)
@@ -365,6 +382,7 @@ const styles = `
 
     /* Grid collapses */
     .grid-2,.grid-3{grid-template-columns:1fr;}
+    .dashboard-grid{grid-template-columns:1fr!important;}
     .stats-grid{grid-template-columns:1fr 1fr;}
     .form-row{grid-template-columns:1fr;}
     .plans-grid{grid-template-columns:1fr 1fr;}
@@ -407,13 +425,16 @@ const styles = `
     .bar-chart{height:80px;}
     .bar-label{font-size:9px;}
 
-    /* PWA banner above bottom nav */
-    .pwa-banner{bottom:calc(var(--bottom-nav-h) + 10px);}
+
   }
 
   /* ══════════════════════════════
      SMALL MOBILE (≤380px)
      ══════════════════════════════ */
+  @media(max-width:480px){
+    input[type="time"]{font-size:15px;padding:11px 10px;}
+    .form-row{grid-template-columns:1fr;}
+  }
   @media(max-width:380px){
     .stats-grid{grid-template-columns:1fr;}
     .plans-grid{grid-template-columns:1fr;}
@@ -1782,7 +1803,7 @@ function Dashboard({ data, library, onUpdate, onCreateSubscription }) {
         <div className="stat-card purple"><div className="stat-icon"><Icon name="seat2" size={26} color="var(--purple)"/></div><div className="stat-label">Seat Status</div><div className="stat-value">{freeCount+halfCount}/{totalSeats}</div><div className="stat-change">{freeCount} free · {halfCount} half</div></div>
         <div className="stat-card gold"><div className="stat-icon"><Icon name="clock" size={26} color="var(--accent)"/></div><div className="stat-label">Shifts</div><div className="stat-value">{data.shifts?.length||0}</div></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1.2fr",gap:18,marginBottom:22}}>
+      <div className="dashboard-grid" style={{display:"grid",gridTemplateColumns:"1fr 1.2fr",gap:18,marginBottom:22}}>
         <div className="card">
           <div className="section-title">Revenue (6 Months)</div>
           <div className="bar-chart">{months.map((m,i)=><div key={i} className="bar-col"><div className="bar-value">{Number(m.revenue)>0?`₹${(Number(m.revenue)/1000).toFixed(0)}k`:""}</div><div className="bar" style={{height:`${(Number(m.revenue)/maxRev)*80}px`}}/><div className="bar-label">{m.month}</div></div>)}</div>
@@ -2272,10 +2293,16 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwaPrompt, setPwaPrompt]     = useState(false);
 
-  // Show PWA install banner after 30s if prompt available
+  // Show PWA install FAB after 10s, auto-hide tooltip after 4s
+  const [pwaTooltip, setPwaTooltip] = useState(false);
   useEffect(()=>{
-    const t = setTimeout(()=>{ if(window._pwaPrompt) setPwaPrompt(true); }, 30000);
-    window.addEventListener('beforeinstallprompt', ()=>{ setTimeout(()=>setPwaPrompt(true), 30000); });
+    const show = () => {
+      setPwaPrompt(true);
+      setPwaTooltip(true);
+      setTimeout(()=>setPwaTooltip(false), 4000); // tooltip hides after 4s
+    };
+    const t = setTimeout(()=>{ if(window._pwaPrompt) show(); }, 10000);
+    window.addEventListener('beforeinstallprompt', ()=>{ setTimeout(show, 10000); });
     return ()=>clearTimeout(t);
   },[]);
   const [subPrefill, setSubPrefill]   = useState(null);
@@ -2394,20 +2421,20 @@ export default function App() {
           </div>
         </nav>
 
-        {/* ── PWA Install Banner ── */}
+        {/* ── PWA Install Floating Button ── */}
         {pwaPrompt && (
-          <div className="pwa-banner">
-            <div style={{fontSize:28}}>📱</div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:13}}>Install LibraryDesk</div>
-              <div style={{fontSize:11,color:"var(--text3)"}}>Add to home screen for quick access</div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={()=>{
-              if(window._pwaPrompt){ window._pwaPrompt.prompt(); window._pwaPrompt.userChoice.then(()=>setPwaPrompt(false)); }
-              else setPwaPrompt(false);
-            }}>Install</button>
-            <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>setPwaPrompt(false)}><Icon name="x" size={14}/></button>
-          </div>
+          <>
+            <button className="pwa-fab" title="Install LibraryDesk app"
+              onClick={()=>{
+                if(window._pwaPrompt){ window._pwaPrompt.prompt(); window._pwaPrompt.userChoice.then(()=>setPwaPrompt(false)); }
+                else setPwaPrompt(false);
+              }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v13M8 11l4 4 4-4"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2"/>
+              </svg>
+            </button>
+            {pwaTooltip && <div className="pwa-fab-tooltip">Install App</div>}
+          </>
         )}
       </div>
     </>
