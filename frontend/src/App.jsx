@@ -255,7 +255,8 @@ const styles = `
   .auth-bg{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% -10%,rgba(232,168,56,0.07) 0%,transparent 70%);pointer-events:none;}
   .auth-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,0.5);position:relative;z-index:1;}
   .auth-logo{text-align:center;margin-bottom:24px;}
-  .auth-logo-icon{width:52px;height:52px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;}
+  .auth-logo-icon{width:64px;height:64px;border-radius:16px;overflow:hidden;margin:0 auto 10px;box-shadow:0 4px 20px rgba(232,168,56,0.3);}
+  .auth-logo-icon img{width:100%;height:100%;object-fit:cover;}
   .auth-title{font-family:'Playfair Display',serif;font-size:24px;color:var(--text);margin-bottom:3px;}
   .auth-sub{font-size:13px;color:var(--text3);}
   .auth-toggle{text-align:center;margin-top:20px;font-size:13px;color:var(--text3);}
@@ -1432,10 +1433,8 @@ function AuthPage({ onAuth }) {
 
   const logoBlock = (
     <div className="auth-logo">
-      <div className="auth-logo-icon" style={{background:"linear-gradient(135deg,var(--accent),#c87a1a)",borderRadius:14,width:52,height:52,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 16px rgba(232,168,56,0.35)"}}>
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="9" y1="7" x2="15" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="11" x2="15" y2="11" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-      </div>
-      <h1 className="auth-title" style={{letterSpacing:4,fontSize:28,fontWeight:800}}>LIBRA</h1>
+      <img src="/icons/icon-192.png" alt="LibraryDesk" style={{width:72,height:72,borderRadius:18,objectFit:"cover",boxShadow:"0 4px 24px rgba(232,168,56,0.35)",marginBottom:10}}/>
+      <h1 className="auth-title" style={{letterSpacing:1,fontSize:26,fontWeight:800}}>LibraryDesk</h1>
       <p className="auth-sub">Library Management System</p>
     </div>
   );
@@ -1520,10 +1519,8 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
       <aside className={`sidebar${isOpen?" open":""}`}>
         <div className="sidebar-logo">
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,var(--accent),#c87a1a)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 2px 8px rgba(232,168,56,0.4)"}}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="9" y1="7" x2="15" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="11" x2="15" y2="11" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-            </div>
-            <div><div className="logo-text" style={{letterSpacing:3,fontSize:17,fontWeight:800}}>LIBRA</div><div className="logo-sub">Library Manager</div></div>
+            <img src="/icons/apple-touch-icon.png" alt="LibraryDesk" style={{width:36,height:36,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
+            <div><div className="logo-text" style={{letterSpacing:1,fontSize:16,fontWeight:800}}>LibraryDesk</div><div className="logo-sub">Library Manager</div></div>
           </div>
         </div>
         <nav className="sidebar-nav">
