@@ -457,6 +457,39 @@ const styles = `
 
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
+
+// Custom time picker that shows AM/PM on all browsers/devices
+function TimePicker({ value, onChange, className="" }) {
+  // Parse value (HH:MM 24h format)
+  const [h24, min] = (value||"00:00").split(":").map(Number);
+  const isPM = h24 >= 12;
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+
+  const update = (newH12, newMin, newIsPM) => {
+    let h = newH12 % 12;
+    if (newIsPM) h += 12;
+    onChange(`${String(h).padStart(2,"0")}:${String(newMin).padStart(2,"0")}`);
+  };
+
+  return (
+    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+      <select className={"input select "+className} style={{flex:1,minWidth:0}}
+        value={h12} onChange={e=>update(Number(e.target.value), min, isPM)}>
+        {[12,1,2,3,4,5,6,7,8,9,10,11].map(h=><option key={h} value={h}>{String(h).padStart(2,"0")}</option>)}
+      </select>
+      <select className={"input select "+className} style={{flex:1,minWidth:0}}
+        value={min} onChange={e=>update(h12, Number(e.target.value), isPM)}>
+        {[0,15,30,45].map(m=><option key={m} value={m}>{String(m).padStart(2,"0")}</option>)}
+      </select>
+      <select className={"input select "+className} style={{flex:"0 0 72px"}}
+        value={isPM?"PM":"AM"} onChange={e=>update(h12, min, e.target.value==="PM")}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
 function Spinner({ size = 20 }) {
   return <Icon name="spin" size={size} color="var(--accent)" />;
 }
@@ -636,10 +669,10 @@ function SeatPanel({ data, library, onUpdate, onCreateSubscription, showControls
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span className="text-sm text-muted">Operation hours:</span>
-            <input className="input" type="time" style={{ width: 110 }} defaultValue={library?.open_time || "08:00"}
+            <input className="input" type="time" style={{ width: "100%" }} defaultValue={library?.open_time || "08:00"}
               onBlur={e => { if(e.target.value) updateOpHours(e.target.value, library?.close_time || "21:00"); }} />
             <span className="text-sm text-muted">to</span>
-            <input className="input" type="time" style={{ width: 110 }} defaultValue={library?.close_time || "21:00"}
+            <input className="input" type="time" style={{ width: "100%" }} defaultValue={library?.close_time || "21:00"}
               onBlur={e => { if(e.target.value) updateOpHours(library?.open_time || "08:00", e.target.value); }} />
           </div>
           {saving && <Spinner size={16} />}
@@ -1849,7 +1882,7 @@ function Shifts({ data, reload, readonly=false }) {
       <div className="page-header"><div className="page-header-left"><h1>Shifts</h1><p>Define library time slots</p></div>{!readonly&&<button className="btn btn-primary" onClick={()=>open()}><Icon name="plus" size={15}/>Add Shift</button>}</div>
       {data.shifts.length===0?<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="clock" size={26} color="var(--text3)"/></div><div className="empty-title">No shifts defined</div><div className="empty-sub">Create shifts like Morning, Evening, Full Day</div></div></div>
         :<div className="plans-grid">{data.shifts.map(sh=>{const usedCount=(data.subscriptions||[]).filter(s=>s.shift_id===sh.id&&s.status==="active").length;return(<div key={sh.id} className="plan-card"><div style={{display:"flex",justifyContent:"space-between"}}><div className="lib-avatar" style={{width:36,height:36,borderRadius:10,background:"var(--purple-dim)",border:"1px solid var(--purple)",color:"var(--purple)"}}><Icon name="clock" size={16}/></div><span className="badge badge-gray">{usedCount} active</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,marginTop:12,marginBottom:4}}>{sh.name}</div><div style={{fontSize:13,color:"var(--text2)"}}>{sh.start_time} — {sh.end_time}</div>{sh.description&&<div className="text-sm text-muted" style={{marginTop:4}}>{sh.description}</div>}<div style={{display:"flex",gap:8,marginTop:12}}><button className="btn btn-secondary btn-sm" onClick={()=>open(sh)}><Icon name="edit" size={13}/>Edit</button><button className="btn btn-danger btn-sm" onClick={()=>setConfirmDel(sh.id)}><Icon name="trash" size={13}/></button></div></div>);})}</div>}
-      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Create"} Shift</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Shift Name *</label><input className="input" placeholder="Morning, Evening, Full Day…" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-row"><div className="form-group"><label className="label">Start Time *</label><input className="input" type="time" value={form.startTime} onChange={e=>set("startTime",e.target.value)}/></div><div className="form-group"><label className="label">End Time *</label><input className="input" type="time" value={form.endTime} onChange={e=>set("endTime",e.target.value)}/></div></div><div className="form-group"><label className="label">Description</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Create"}</button></div></div></div>}
+      {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">{edit?"Edit":"Create"} Shift</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Shift Name *</label><input className="input" placeholder="Morning, Evening, Full Day…" value={form.name} onChange={e=>set("name",e.target.value)}/></div><div className="form-row"><div className="form-group"><label className="label">Start Time *</label><TimePicker value={form.startTime} onChange={v=>set("startTime",v)}/></div><div className="form-group"><label className="label">End Time *</label><TimePicker value={form.endTime} onChange={v=>set("endTime",v)}/></div></div><div className="form-group"><label className="label">Description</label><textarea className="input textarea" value={form.description} onChange={e=>set("description",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}{edit?"Save":"Create"}</button></div></div></div>}
     </div>
   );
 }
@@ -2290,17 +2323,38 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pwaPrompt, setPwaPrompt]     = useState(false);
 
-  // Show PWA install FAB after 10s, auto-hide tooltip after 4s
+  // Show PWA install FAB
   const [pwaTooltip, setPwaTooltip] = useState(false);
   useEffect(()=>{
+    // Don't show if already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+    if (isStandalone) return;
+
     const show = () => {
       setPwaPrompt(true);
       setPwaTooltip(true);
-      setTimeout(()=>setPwaTooltip(false), 4000); // tooltip hides after 4s
+      setTimeout(()=>setPwaTooltip(false), 5000);
     };
-    const t = setTimeout(()=>{ if(window._pwaPrompt) show(); }, 10000);
-    window.addEventListener('beforeinstallprompt', ()=>{ setTimeout(show, 10000); });
-    return ()=>clearTimeout(t);
+
+    // Listen for the prompt event (Android Chrome)
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window._pwaPrompt = e;
+      setTimeout(show, 3000); // show FAB 3s after prompt is ready
+    });
+
+    // If prompt was already captured before React loaded (in index.html)
+    if (window._pwaPrompt) {
+      setTimeout(show, 3000);
+    }
+
+    // Fallback: show FAB after 8s on mobile browsers that support PWA
+    const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobile) {
+      const t = setTimeout(()=>{ setPwaPrompt(true); setPwaTooltip(true); setTimeout(()=>setPwaTooltip(false),5000); }, 8000);
+      return ()=>clearTimeout(t);
+    }
   },[]);
   const [subPrefill, setSubPrefill]   = useState(null);
 
