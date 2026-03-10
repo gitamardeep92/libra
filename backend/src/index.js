@@ -148,7 +148,7 @@ app.get('/checkin/:libraryId', (req, res) => {
 
   <script>
     const API_URL = window.location.origin;
-    const LIBRARY_ID = ${libraryId};
+    const LIBRARY_ID = "${libraryId}";
 
     async function loadLibrary() {
       try {
