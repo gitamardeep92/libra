@@ -1471,8 +1471,7 @@ function NotificationSettings() {
 
   useEffect(()=>{
     // Fetch VAPID key directly — no auth needed, plain public endpoint
-    const base = import.meta.env.VITE_API_URL || '';
-    fetch(`${base}/api/push/vapid-public-key`)
+    fetch(`${API_BASE}/api/push/vapid-public-key`)
       .then(r => r.json())
       .then(d => { if (d?.key) setVapidKey(d.key); })
       .catch(() => {});

@@ -2,6 +2,7 @@
 // All fetch calls go here. Components never hit fetch() directly.
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const API_BASE = BASE;
 
 // ─── Token management ─────────────────────────────────────────────────────────
 export const getToken  = ()        => localStorage.getItem('libra_token');
