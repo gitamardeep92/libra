@@ -1444,7 +1444,27 @@ function Settings({ library, onUpdate }) {
 
 // ─── NOTIFICATION SETTINGS COMPONENT ─────────────────────────────────────────
 function NotificationSettings() {
-  const [state,    setState]   = useState(typeof Notification!=="undefined" ? Notification.permission : "unsupported");
+  // Detect environment
+  const isIOS        = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const hasNotifAPI  = typeof Notification !== "undefined";
+  const hasPushAPI   = "serviceWorker" in navigator && "PushManager" in window;
+
+  // iOS Safari browser (not PWA) — no push support at all
+  const isIOSSafariBrowser = isIOS && !isStandalone;
+  // iOS PWA — push supported only on iOS 16.4+
+  const isIOSPWA = isIOS && isStandalone;
+  const iOSVersion = isIOS ? parseInt((navigator.userAgent.match(/OS (\d+)_/)||[])[1]||"0") : 99;
+  const iOSPushSupported = isIOSPWA && iOSVersion >= 16 && hasNotifAPI && hasPushAPI;
+
+  const getInitialState = () => {
+    if (isIOSSafariBrowser) return "ios-browser";
+    if (isIOSPWA && !iOSPushSupported) return "ios-old";
+    if (!hasNotifAPI || !hasPushAPI) return "unsupported";
+    return Notification.permission;
+  };
+
+  const [state,    setState]   = useState(getInitialState());
   const [vapidKey, setVapidKey]= useState(null);
   const [testing,  setTesting] = useState(false);
   const [msg,      setMsg]     = useState("");
@@ -1454,16 +1474,29 @@ function NotificationSettings() {
   },[]);
 
   const enable = async () => {
-    if (!("Notification" in window)||!("serviceWorker" in navigator)||!vapidKey) { setMsg("Push not supported on this browser."); return; }
-    const perm = await Notification.requestPermission();
-    setState(perm);
-    if (perm!=="granted") { setMsg("Permission denied. Please allow notifications in browser settings."); return; }
+    if (!vapidKey) { setMsg("Push service not configured yet."); return; }
     try {
+      // Must call requestPermission directly (important for iOS PWA)
+      const perm = await Notification.requestPermission();
+      setState(perm);
+      if (perm !== "granted") {
+        setMsg("Permission denied. Go to iPhone Settings → LibraryDesk → Notifications → Allow.");
+        return;
+      }
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(vapidKey) });
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+      });
       await api.push.subscribe(sub);
       setMsg("✅ Notifications enabled! You'll get alerts for check-ins, renewals and more.");
-    } catch(e) { setMsg("Error: "+e.message); }
+    } catch(e) {
+      if (e.name === "NotAllowedError") {
+        setMsg("Blocked. Go to iPhone Settings → LibraryDesk → Notifications → Allow.");
+      } else {
+        setMsg("Error: " + e.message);
+      }
+    }
   };
 
   const disable = async () => {
@@ -1496,13 +1529,47 @@ function NotificationSettings() {
         <div className="section-title" style={{marginBottom:4}}><Icon name="bell" size={13} color="var(--text3)"/>Push Notifications</div>
         <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Get real-time alerts on your phone or browser — even when the app is in the background.</div>
 
+        {state==="ios-browser" && (
+          <div style={{borderRadius:10,overflow:"hidden"}}>
+            <div style={{background:"linear-gradient(135deg,#1a1a2e,#16213e)",padding:20,textAlign:"center"}}>
+              <div style={{fontSize:36,marginBottom:8}}>📱</div>
+              <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Install the App for Notifications</div>
+              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.6,marginBottom:16}}>
+                Safari browser doesn't support push notifications.<br/>
+                Add LibraryDesk to your Home Screen to enable them.
+              </div>
+              <div style={{background:"rgba(255,255,255,0.06)",borderRadius:10,padding:16,textAlign:"left"}}>
+                <div style={{fontSize:12,color:"var(--text3)",marginBottom:10,fontWeight:600,letterSpacing:1}}>HOW TO INSTALL</div>
+                {[
+                  ["1","Tap the Share button", "⬆️", "at the bottom of Safari"],
+                  ["2","Scroll and tap",        "➕", '"Add to Home Screen"'],
+                  ["3","Tap",                   "✅", '"Add" — done!'],
+                ].map(([n, a, icon, b])=>(
+                  <div key={n} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,fontSize:13}}>
+                    <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent)",color:"#000",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>{n}</div>
+                    <span>{a} <span style={{fontSize:16}}>{icon}</span> {b}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {state==="ios-old" && (
+          <div className="alert alert-warning">
+            <Icon name="warn" size={14}/>
+            <span style={{fontSize:13}}>
+              Push notifications require <strong>iOS 16.4 or later</strong>. 
+              Your device is on iOS {iOSVersion}. Please update in iPhone Settings → General → Software Update.
+            </span>
+          </div>
+        )}
         {state==="unsupported" && (
-          <div className="alert alert-warning"><Icon name="warn" size={14}/><span style={{fontSize:13}}>Push notifications are not supported on this browser.</span></div>
+          <div className="alert alert-warning"><Icon name="warn" size={14}/><span style={{fontSize:13}}>Push notifications are not supported on this browser. Try Chrome or install as PWA.</span></div>
         )}
         {state==="denied" && (
           <div className="alert alert-error"><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>Notifications are blocked. Go to browser settings → Site Settings → Notifications → Allow librarydesk.in</span></div>
         )}
-        {state!=="unsupported" && state!=="denied" && (
+        {state!=="unsupported" && state!=="denied" && state!=="ios-browser" && state!=="ios-old" && (
           <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
             {state==="granted" ? (
               <>
