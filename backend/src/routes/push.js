@@ -52,7 +52,7 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
       INSERT INTO push_subscriptions (library_id, endpoint, p256dh, auth)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (endpoint) DO UPDATE SET library_id=$1, p256dh=$3, auth=$4
-    `, [req.library.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
+    `, [req.libraryId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -64,7 +64,7 @@ router.delete('/unsubscribe', authenticateToken, async (req, res) => {
   const { endpoint } = req.body;
   try {
     await pool.query('DELETE FROM push_subscriptions WHERE endpoint=$1 AND library_id=$2',
-      [endpoint, req.library.id]);
+      [endpoint, req.libraryId]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -99,7 +99,7 @@ async function sendPushToLibrary(libraryId, payload) {
 
 // ── POST /api/push/test ── Test notification
 router.post('/test', authenticateToken, async (req, res) => {
-  await sendPushToLibrary(req.library.id, {
+  await sendPushToLibrary(req.libraryId, {
     title: '🔔 LibraryDesk Notifications',
     body: 'Push notifications are working!',
     icon: '/icons/icon-192.png',
