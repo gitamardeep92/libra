@@ -1,113 +1,49 @@
-// LibraryDesk Service Worker v1.0
-const CACHE_NAME = 'librarydesk-v1';
-const STATIC_CACHE = 'librarydesk-static-v1';
+// LibraryDesk Service Worker v2.0
+const CACHE_NAME = 'librarydesk-v2';
+const STATIC_CACHE = 'librarydesk-static-v2';
+const PRECACHE_ASSETS = ['/', '/index.html', '/manifest.json'];
 
-// Assets to cache immediately on install
-const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-];
-
-// Install — cache shell
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
-  );
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(STATIC_CACHE).then(c=>c.addAll(PRECACHE_ASSETS)).then(()=>self.skipWaiting()));
 });
-
-// Activate — clean old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
-          .map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
-  );
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME&&k!==STATIC_CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
-
-// Fetch strategy:
-// - API calls: Network first, fall back to cache
-// - Static assets: Cache first, fall back to network
-// - Navigation: Cache first (app shell), fall back to network
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // Skip non-GET and chrome-extension requests
-  if (request.method !== 'GET') return;
-  if (url.protocol === 'chrome-extension:') return;
-
-  // API calls — network first, short timeout
+self.addEventListener('fetch', e => {
+  const {request} = e; const url = new URL(request.url);
+  if (request.method!=='GET'||url.protocol==='chrome-extension:') return;
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful GET API responses briefly
-          if (response.ok) {
-            const cloned = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
+    e.respondWith(fetch(request).then(r=>{if(r.ok){const c=r.clone();caches.open(CACHE_NAME).then(ca=>ca.put(request,c));}return r;}).catch(()=>caches.match(request)));
     return;
   }
+  if (request.mode==='navigate') { e.respondWith(caches.match('/index.html').then(c=>c||fetch(request))); return; }
+  e.respondWith(caches.match(request).then(c=>c||fetch(request).then(r=>{if(r.ok){const cl=r.clone();caches.open(CACHE_NAME).then(ca=>ca.put(request,cl));}return r;})));
+});
 
-  // Navigation requests — serve app shell
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.match('/index.html').then((cached) => cached || fetch(request))
-    );
-    return;
-  }
+// ── PUSH NOTIFICATIONS ──
+self.addEventListener('push', e => {
+  if (!e.data) return;
+  let data = {};
+  try { data = e.data.json(); } catch(err) { data = {title:'LibraryDesk', body:e.data.text()}; }
+  e.waitUntil(self.registration.showNotification(data.title||'LibraryDesk', {
+    body:    data.body||'',
+    icon:    data.icon||'/icons/icon-192.png',
+    badge:   data.badge||'/icons/icon-96.png',
+    vibrate: [200,100,200],
+    tag:     data.tag||'librarydesk-'+Date.now(),
+    renotify:true,
+    data:    {url: data.url||'/'},
+  }));
+});
 
-  // Static assets — cache first
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const cloned = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned));
-        }
-        return response;
-      });
+// ── NOTIFICATION CLICK ──
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url||'/';
+  e.waitUntil(
+    clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+      for (const c of list) { if(c.url.includes(self.location.origin)&&'focus' in c){c.navigate(url);return c.focus();} }
+      if(clients.openWindow) return clients.openWindow(url);
     })
   );
-});
-
-// Background sync for offline actions (future use)
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-attendance') {
-    // Could sync offline check-ins when back online
-    console.log('Background sync: attendance');
-  }
-});
-
-// Push notifications (future use)
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  const data = event.data.json();
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'LibraryDesk', {
-      body: data.body || '',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-96.png',
-      data: data.url ? { url: data.url } : {},
-    })
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  if (event.notification.data?.url) {
-    event.waitUntil(clients.openWindow(event.notification.data.url));
-  }
 });

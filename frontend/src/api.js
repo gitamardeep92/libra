@@ -88,4 +88,12 @@ export const api = {
   reports: {
     summary: () => request('/api/reports/summary'),
   },
+
+  // ─── Push Notifications ───────────────────────────────────────────────────
+  push: {
+    vapidKey:    ()          => request('/api/push/vapid-public-key'),
+    subscribe:   (sub)       => request('/api/push/subscribe',   { method: 'POST',   body: JSON.stringify({ subscription: sub }) }),
+    unsubscribe: (endpoint)  => request('/api/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+    test:        ()          => request('/api/push/test',        { method: 'POST' }),
+  },
 };

@@ -314,6 +314,11 @@ const styles = `
   .font-bold{font-weight:700;}.font-600{font-weight:600;}
   .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:400;}
 
+  /* ── PUSH NOTIFICATION BELL ── */
+  .notif-btn{position:relative;}
+  .notif-btn .notif-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--green);border:2px solid var(--surface);}
+  .notif-btn .notif-dot.off{background:var(--text3);}
+
   /* ── PWA INSTALL FLOATING BUTTON ── */
   .pwa-fab{
     position:fixed;bottom:calc(var(--bottom-nav-h) + 16px);right:16px;
@@ -508,6 +513,14 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, confirmLabel = "Co
 
 // ─── DATA HOOK ────────────────────────────────────────────────────────────────
 // Loads ALL data for the current library in one pass on mount & after mutations
+// VAPID key helper
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
 function useLibraryData(isLoggedIn) {
   const [data, setData] = useState({ shifts: [], plans: [], students: [], subscriptions: [], reminders: [], expenses: [], totalSeats: 30 });
   const [loading, setLoading] = useState(false);
@@ -1383,7 +1396,7 @@ function Settings({ library, onUpdate }) {
     <div>
       <div className="page-header"><div className="page-header-left"><h1>Settings</h1></div></div>
       <div className="pill-tabs">
-        {[["profile","Profile"],["password","Password"]].map(([v,l])=>(
+        {[["profile","Profile"],["password","Password"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
         ))}
       </div>
@@ -1421,6 +1434,119 @@ function Settings({ library, onUpdate }) {
           </div>
         </div>
       )}
+
+      {tab==="notifications"&&(
+        <NotificationSettings/>
+      )}
+    </div>
+  );
+}
+
+// ─── NOTIFICATION SETTINGS COMPONENT ─────────────────────────────────────────
+function NotificationSettings() {
+  const [state,    setState]   = useState(typeof Notification!=="undefined" ? Notification.permission : "unsupported");
+  const [vapidKey, setVapidKey]= useState(null);
+  const [testing,  setTesting] = useState(false);
+  const [msg,      setMsg]     = useState("");
+
+  useEffect(()=>{
+    api.push.vapidKey().then(d=>{ if(d?.key) setVapidKey(d.key); }).catch(()=>{});
+  },[]);
+
+  const enable = async () => {
+    if (!("Notification" in window)||!("serviceWorker" in navigator)||!vapidKey) { setMsg("Push not supported on this browser."); return; }
+    const perm = await Notification.requestPermission();
+    setState(perm);
+    if (perm!=="granted") { setMsg("Permission denied. Please allow notifications in browser settings."); return; }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(vapidKey) });
+      await api.push.subscribe(sub);
+      setMsg("✅ Notifications enabled! You'll get alerts for check-ins, renewals and more.");
+    } catch(e) { setMsg("Error: "+e.message); }
+  };
+
+  const disable = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) { await api.push.unsubscribe(sub.endpoint); await sub.unsubscribe(); }
+      setState("default");
+      setMsg("Notifications disabled.");
+    } catch(e) {}
+  };
+
+  const test = async () => {
+    setTesting(true);
+    await api.push.test().catch(()=>{});
+    setMsg("🔔 Test notification sent! You should see it shortly.");
+    setTesting(false);
+  };
+
+  const events = [
+    { icon:"attendance", label:"Student Check-in / Check-out", desc:"Instant alert when a student scans QR code" },
+    { icon:"bell",       label:"Subscription Expiring",        desc:"3 days before a student's plan expires" },
+    { icon:"warn",       label:"Subscription Expired",         desc:"When a student's subscription runs out" },
+    { icon:"student",    label:"New Student Registered",       desc:"When a new student is added" },
+  ];
+
+  return (
+    <div style={{maxWidth:520}}>
+      <div className="card" style={{marginBottom:16}}>
+        <div className="section-title" style={{marginBottom:4}}><Icon name="bell" size={13} color="var(--text3)"/>Push Notifications</div>
+        <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Get real-time alerts on your phone or browser — even when the app is in the background.</div>
+
+        {state==="unsupported" && (
+          <div className="alert alert-warning"><Icon name="warn" size={14}/><span style={{fontSize:13}}>Push notifications are not supported on this browser.</span></div>
+        )}
+        {state==="denied" && (
+          <div className="alert alert-error"><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>Notifications are blocked. Go to browser settings → Site Settings → Notifications → Allow librarydesk.in</span></div>
+        )}
+        {state!=="unsupported" && state!=="denied" && (
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            {state==="granted" ? (
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:8,flex:1}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:"var(--green)",flexShrink:0}}/>
+                  <span style={{fontSize:13,color:"var(--green)",fontWeight:600}}>Notifications Active</span>
+                </div>
+                <button className="btn btn-secondary btn-sm" onClick={disable}>Disable</button>
+                <button className="btn btn-primary btn-sm" onClick={test} disabled={testing}>
+                  {testing?<Spinner size={13}/>:null}Send Test
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:8,flex:1}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:"var(--text3)",flexShrink:0}}/>
+                  <span style={{fontSize:13,color:"var(--text2)"}}>Not enabled</span>
+                </div>
+                <button className="btn btn-primary" onClick={enable} style={{gap:8}}>
+                  <Icon name="bell" size={15}/>Enable Notifications
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {msg&&<div style={{marginTop:12,fontSize:13,color:"var(--text2)",padding:"8px 12px",background:"var(--surface2)",borderRadius:8}}>{msg}</div>}
+      </div>
+
+      <div className="card">
+        <div className="section-title" style={{marginBottom:12}}><Icon name="bell" size={13} color="var(--text3)"/>You will be notified for</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {events.map(ev=>(
+            <div key={ev.label} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{width:32,height:32,borderRadius:8,background:"var(--accent-dim)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Icon name={ev.icon} size={15} color="var(--accent)"/>
+              </div>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:2}}>{ev.label}</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>{ev.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2059,7 +2185,12 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
     setShowModal(true);
   };
 
-  const cancel = async(id) => { await api.subscriptions.cancel(id); await reload(["subscriptions"]); };
+  const [cancelConfirm, setCancelConfirm] = useState(null); // holds subscription to cancel
+  const cancel = async(id) => {
+    await api.subscriptions.cancel(id);
+    await reload(["subscriptions"]);
+    setCancelConfirm(null);
+  };
 
   // ── Shift dropdown: disable shifts that overlap with existing seat bookings ─
   const shiftOption = (sh) => {
@@ -2116,7 +2247,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
                   // If sub is expired, start from expiry date; if still active, start from day after expiry
                   const renewStart=expDate?(daysDiff(expDate)<0?expDate:addDays(expDate,1)):today();
                   setEditSub(null);setForm({...emptyForm,studentId:s.student_id,planId:s.plan_id||"",seatNumber:String(s.seat_number||""),shiftId:s.shift_id||"",startDate:renewStart,notes:"Renewal",isRenewal:true});setShowModal(true);}}>Renew</button>
-                {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>cancel(s.id)}>Cancel</button>}
+                {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>setCancelConfirm(s)}>Cancel</button>}
               </div></td>
             </tr>);
           })}
@@ -2150,6 +2281,32 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
           </div>
 
           {/* Duplicate active sub warning */}
+          {/* Cancel Confirmation */}
+          {cancelConfirm && (
+            <div className="modal-overlay">
+              <div className="modal" style={{maxWidth:400}}>
+                <div className="modal-header">
+                  <h2 className="modal-title" style={{color:"var(--red)"}}>Cancel Subscription?</h2>
+                  <button className="btn btn-ghost btn-icon" onClick={()=>setCancelConfirm(null)}><Icon name="x" size={17}/></button>
+                </div>
+                <div className="modal-body">
+                  <div className="alert alert-error" style={{marginBottom:14}}>
+                    <Icon name="warn" size={16} color="var(--red)"/>
+                    <span style={{fontSize:13}}>This action cannot be undone.</span>
+                  </div>
+                  <div style={{fontSize:14,marginBottom:8}}>You are about to cancel the subscription for:</div>
+                  <div style={{background:"var(--surface2)",borderRadius:9,padding:"12px 14px",marginBottom:4}}>
+                    <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{cancelConfirm.student_name}</div>
+                    <div style={{fontSize:13,color:"var(--text2)"}}>{cancelConfirm.plan_name} · Expires {formatDate(cancelConfirm.end_date)}</div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-secondary" onClick={()=>setCancelConfirm(null)}>Keep Subscription</button>
+                  <button className="btn btn-danger" onClick={()=>cancel(cancelConfirm.id)}>Yes, Cancel It</button>
+                </div>
+              </div>
+            </div>
+          )}
           {existingActiveSub&&<div className="alert alert-warning"><Icon name="warn" size={14} color="var(--accent)"/><span style={{fontSize:13}}>This student already has an active <strong>{existingActiveSub.plan_name}</strong> subscription expiring <strong>{formatDate(existingActiveSub.end_date)}</strong>. Cancel it first or use Edit.</span></div>}
 
           {selectedPlan&&<div className="alert alert-success"><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>Duration: <strong>{selectedPlan.duration}d</strong> · End: <strong>{formatDate(endDate)}</strong> · Payable: <strong>{formatCurrency(effectiveAmount)}</strong></span></div>}
@@ -2320,7 +2477,40 @@ export default function App() {
   const [checking, setChecking]   = useState(true);
   const [page, setPage]           = useState("dashboard");
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [notifState,  setNotifState]    = useState('default'); // 'default'|'granted'|'denied'
+  const [vapidKey,    setVapidKey]      = useState(null);
+
+  // Load VAPID key + check existing permission on mount
+  useEffect(()=>{
+    fetch('/api/push/vapid-public-key').then(r=>r.json()).then(d=>{ if(d.key) setVapidKey(d.key); }).catch(()=>{});
+    if('Notification' in window) setNotifState(Notification.permission);
+  },[]);
+
+  const enableNotifications = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !vapidKey) return;
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifState(permission);
+      if (permission !== 'granted') return;
+
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+      });
+      await api.push.subscribe(sub);
+    } catch(e) { console.error('Push subscribe error:', e); }
+  };
+
+  const disableNotifications = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) { await api.push.unsubscribe(sub.endpoint); await sub.unsubscribe(); }
+      setNotifState('default');
+    } catch(e) {}
+  };
   const [pwaPrompt, setPwaPrompt]     = useState(false);
 
   // Show PWA install FAB

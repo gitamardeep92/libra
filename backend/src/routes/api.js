@@ -1,5 +1,6 @@
 // src/routes/api.js  –  all protected CRUD routes
 const express = require('express');
+let pushNotify; try { pushNotify = require('./push').sendPushToLibrary; } catch(e) {}
 const pool    = require('../db/pool');
 const auth    = require('../middleware/auth');
 
@@ -377,6 +378,16 @@ router.post('/attendance/checkin', async (req, res) => {
       `INSERT INTO attendance(library_id, student_id, date) VALUES($1,$2,CURRENT_DATE)`,
       [libraryId, studentId]
     );
+    // Push notification to library owner
+    if (pushNotify) {
+      pushNotify(libraryId, {
+        title: `✅ ${student.name} Checked In`,
+        body: `${student.shift_name ? student.shift_name + ' shift · ' : ''}Seat active`,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-96.png',
+        url: '/?page=attendance'
+      }).catch(()=>{});
+    }
     res.json({ action: 'checkin', student, message: `Welcome ${student.name}!` });
   } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
