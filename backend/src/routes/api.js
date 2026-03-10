@@ -7,23 +7,35 @@ const auth    = require('../middleware/auth');
 const router = express.Router();
 
 // ── PUBLIC ROUTES (no auth) ──────────────────────────────────────────────────
-// Auto-create attendance table if not exists
+// Auto-create/fix attendance table
 const ensureAttendanceTable = async () => {
-  // Create without FK constraints to avoid type mismatch on fresh deploys
+  // Check if student_id column is wrong type (INTEGER instead of UUID)
+  const colCheck = await pool.query(`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name='attendance' AND column_name='student_id'
+  `).catch(()=>({rows:[]}));
+
+  if (colCheck.rows.length && colCheck.rows[0].data_type === 'integer') {
+    // Wrong type — drop and recreate (data will be lost but it was broken anyway)
+    console.warn('[attendance] Dropping old attendance table with wrong column types...');
+    await pool.query('DROP TABLE IF EXISTS attendance').catch(()=>{});
+  }
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS attendance (
-      id SERIAL PRIMARY KEY,
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       library_id UUID NOT NULL,
-      student_id INTEGER NOT NULL,
-      check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      check_out TIMESTAMPTZ,
-      date DATE NOT NULL DEFAULT CURRENT_DATE,
-      notes TEXT,
+      student_id UUID NOT NULL,
+      check_in   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      check_out  TIMESTAMPTZ,
+      date       DATE NOT NULL DEFAULT CURRENT_DATE,
+      notes      TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`).catch(()=>{});
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`).catch(()=>{});
+  console.log('[attendance] Table ready ✓');
 };
 ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
 
@@ -47,7 +59,22 @@ router.post('/attendance/checkin', async (req, res) => {
   // Normalize phone — strip country code, keep last 10 digits
   const normalizedPhone = phone.replace(/\D/g,'').slice(-10);
   try {
-    // Verify student belongs to this library and is active — match by phone
+    // Ensure attendance table exists (inline, no FK constraints)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attendance (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        library_id UUID NOT NULL,
+        student_id UUID NOT NULL,
+        check_in   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        check_out  TIMESTAMPTZ,
+        date       DATE NOT NULL DEFAULT CURRENT_DATE,
+        notes      TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `).catch(()=>{});
+
+    // Find student by phone — simple match on last 10 digits
+    const normalizedForQuery = normalizedPhone;
     const st = await pool.query(
       `SELECT s.id, s.name, s.phone,
               sub.end_date, sub.plan_name, sub.shift_id,
@@ -55,8 +82,8 @@ router.post('/attendance/checkin', async (req, res) => {
        FROM students s
        LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
        LEFT JOIN shifts sh ON sh.id=sub.shift_id
-       WHERE RIGHT(REGEXP_REPLACE(s.phone,'\\D','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
-      [libraryId, normalizedPhone]
+       WHERE RIGHT(REGEXP_REPLACE(s.phone,'[^0-9]','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
+      [libraryId, normalizedForQuery]
     );
     if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
 
