@@ -15,10 +15,16 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .split(',')
   .map(s => s.trim());
 
+// Also always allow the backend's own origin (for QR checkin page)
+const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL || '';
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
+    // Allow requests with no origin (mobile apps, curl, PWA)
     if (!origin) return callback(null, true);
+    // Allow backend's own origin (QR checkin page is served from backend)
+    if (BACKEND_URL && origin === BACKEND_URL) return callback(null, true);
+    if (origin.includes('onrender.com')) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     callback(new Error(`CORS blocked: ${origin}`));
   },
