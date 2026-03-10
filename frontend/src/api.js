@@ -85,6 +85,13 @@ export const api = {
     delete: (id)  => request(`/api/expenses/${id}`,{ method: 'DELETE' }),
   },
 
+  // ─── Attendance ───────────────────────────────────────────────────────────
+  attendance: {
+    today:   ()           => request('/api/attendance/today'),
+    history: (p)          => request(`/api/attendance?from=${p.from}&to=${p.to}${p.studentId?'&studentId='+p.studentId:''}`),
+    summary: (month)      => request(`/api/attendance/summary${month?'?month='+month:''}`),
+  },
+
   // ─── Reports ──────────────────────────────────────────────────────────────
   reports: {
     summary: () => request('/api/reports/summary'),
