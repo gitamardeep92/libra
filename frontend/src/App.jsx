@@ -2600,7 +2600,8 @@ function Reports({ data }) {
 export default function App() {
   const [library, setLibrary]     = useState(null);
   const [checking, setChecking]   = useState(true);
-  const [page, setPage]           = useState("dashboard");
+  const [page, setPage]           = useState(() => localStorage.getItem("libra_page") || "dashboard");
+  const navigate = (p) => { setPage(p); localStorage.setItem("libra_page", p); };
 
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [notifState,  setNotifState]    = useState('default'); // 'default'|'granted'|'denied'
@@ -2698,7 +2699,7 @@ export default function App() {
       ...(upd.city         ? { city:          upd.city         } : {}),
     }));
   };
-  const handleCreateSub = (pf) => { setSubPrefill(pf); setPage("subscriptions"); };
+  const handleCreateSub = (pf) => { setSubPrefill(pf); navigate("subscriptions"); };
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
 
@@ -2721,7 +2722,7 @@ export default function App() {
       <style>{styles}</style>
       <div className="app">
         {sidebarOpen && <div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
-        <Sidebar library={library} active={page} onNav={setPage} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders}/>
+        <Sidebar library={library} active={page} onNav={navigate} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders}/>
         <main className="main">
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1}}>
@@ -2732,9 +2733,9 @@ export default function App() {
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {urgentReminders>0&&<button className="btn btn-ghost btn-icon" onClick={()=>setPage("reminders")} style={{position:"relative"}}><Icon name="bell" size={19} color="var(--accent)"/><span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"var(--red)",border:"2px solid var(--surface)"}}/></button>}
+              {urgentReminders>0&&<button className="btn btn-ghost btn-icon" onClick={()=>navigate("reminders")} style={{position:"relative"}}><Icon name="bell" size={19} color="var(--accent)"/><span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"var(--red)",border:"2px solid var(--surface)"}}/></button>}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 11px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)"}}>
-                {(()=>{const t=getTrialBannerType(library);if(t==="urgent"||t==="expired"||t==="suspended")return<button onClick={()=>setPage("billing")} className="badge badge-red" style={{cursor:"pointer",border:"none",marginRight:4,fontSize:11}}>{t==="urgent"?`${getTrialDaysLeft(library)}d left`:"Upgrade"}</button>;return null;})()}
+                {(()=>{const t=getTrialBannerType(library);if(t==="urgent"||t==="expired"||t==="suspended")return<button onClick={()=>navigate("billing")} className="badge badge-red" style={{cursor:"pointer",border:"none",marginRight:4,fontSize:11}}>{t==="urgent"?`${getTrialDaysLeft(library)}d left`:"Upgrade"}</button>;return null;})()}
                 <div className="lib-avatar" style={{width:26,height:26,fontSize:11}}>{library.owner_name?.[0]?.toUpperCase()||"U"}</div>
                 <span style={{fontSize:12.5,fontWeight:600}}>{library.owner_name}</span>
               </div>
@@ -2742,13 +2743,13 @@ export default function App() {
           </div>
           <div className="content">
             {loading && page === "dashboard" && <div style={{position:"absolute",top:16,right:32}}><Spinner size={18}/></div>}
-            {page!=="billing" && <TrialBanner library={library} onOpenBilling={()=>setPage("billing")}/>}
+            {page!=="billing" && <TrialBanner library={library} onOpenBilling={()=>navigate("billing")}/>}
             {isReadOnly(library) && page!=="billing" && page!=="settings" && page!=="dashboard" && page!=="attendance" && (
               <div style={{background:"var(--red-dim)",border:"1px solid var(--red)",borderRadius:9,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,fontSize:13}}>
                 <span>🔒</span>
                 <span style={{color:"var(--red)",fontWeight:600}}>Read-only mode</span>
                 <span style={{color:"var(--text3)"}}>— You can view data but cannot make changes.</span>
-                <button className="btn btn-secondary btn-sm" style={{marginLeft:"auto"}} onClick={()=>setPage("billing")}>Upgrade →</button>
+                <button className="btn btn-secondary btn-sm" style={{marginLeft:"auto"}} onClick={()=>navigate("billing")}>Upgrade →</button>
               </div>
             )}
             {page==="dashboard"&&<Dashboard data={data} library={library} onUpdate={handleUpdate} onCreateSubscription={handleCreateSub}/>}
@@ -2778,7 +2779,7 @@ export default function App() {
               {id:"billing",   icon:"payment",    label:"Account", badge: getTrialBannerType(library)==="urgent"||getTrialBannerType(library)==="expired" ? "!" : null},
             ].map(item=>(
               <button key={item.id} className={`bottom-nav-item ${page===item.id?"active":""}`}
-                onClick={()=>{ setPage(item.id); setSidebarOpen(false); }}>
+                onClick={()=>{ navigate(item.id); setSidebarOpen(false); }}>
                 {item.badge && <span className="bnbadge">{item.badge}</span>}
                 <Icon name={item.icon} size={20} color={page===item.id?"var(--accent)":"var(--text3)"}/>
                 {item.label}
