@@ -496,7 +496,7 @@ router.get('/invoices', adminAuth, async (req, res) => {
 // ── ADMIN PUSH NOTIFICATIONS ────────────────────────────────────────────────
 
 // GET /api/admin/push/stats — how many devices subscribed
-router.get('/push/stats', authenticateAdmin, async (req, res) => {
+router.get('/push/stats', adminAuth, async (req, res) => {
   try {
     const r = await pool.query(`
       SELECT COUNT(*) as total,
@@ -510,7 +510,7 @@ router.get('/push/stats', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/admin/push/send — broadcast to all or specific libraries
-router.post('/push/send', authenticateAdmin, async (req, res) => {
+router.post('/push/send', adminAuth, async (req, res) => {
   const { title, body, url, libraryIds } = req.body;
   if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
 
