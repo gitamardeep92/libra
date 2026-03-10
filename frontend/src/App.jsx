@@ -2,7 +2,7 @@
 // Identical UI/UX to the previous version — only data layer changed.
 // localStorage is gone. All state comes from API calls via src/api.js
 import { useState, useEffect, useCallback } from "react";
-import { api, setToken, getToken, clearToken } from "./api";
+import { api, setToken, getToken, clearToken, API_BASE } from "./api";
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const today      = () => new Date().toISOString().slice(0, 10);
@@ -1444,38 +1444,52 @@ function Settings({ library, onUpdate }) {
 
 // ─── NOTIFICATION SETTINGS COMPONENT ─────────────────────────────────────────
 function NotificationSettings() {
-  // Detect environment
-  const isIOS        = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  const hasNotifAPI  = typeof Notification !== "undefined";
-  const hasPushAPI   = "serviceWorker" in navigator && "PushManager" in window;
-
-  // iOS Safari browser (not PWA) — no push support at all
-  const isIOSSafariBrowser = isIOS && !isStandalone;
-  // iOS PWA — push supported only on iOS 16.4+
-  const isIOSPWA = isIOS && isStandalone;
-  const iOSVersion = isIOS ? parseInt((navigator.userAgent.match(/OS (\d+)_/)||[])[1]||"0") : 99;
-  const iOSPushSupported = isIOSPWA && iOSVersion >= 16 && hasNotifAPI && hasPushAPI;
-
-  const getInitialState = () => {
-    if (isIOSSafariBrowser) return "ios-browser";
-    if (isIOSPWA && !iOSPushSupported) return "ios-old";
-    if (!hasNotifAPI || !hasPushAPI) return "unsupported";
-    return Notification.permission;
-  };
-
-  const [state,    setState]   = useState(getInitialState());
+  const [state,    setState]   = useState("loading");
   const [vapidKey, setVapidKey]= useState(null);
   const [testing,  setTesting] = useState(false);
   const [msg,      setMsg]     = useState("");
+  const [iOSVer,   setIOSVer]  = useState(99);
 
   useEffect(()=>{
-    // Fetch VAPID key directly — no auth needed, plain public endpoint
+    // Safe environment detection inside useEffect
+    try {
+      const ua         = navigator.userAgent || "";
+      const isIOS      = /iPhone|iPad|iPod/i.test(ua);
+      const isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+                         || (window.navigator && window.navigator.standalone === true);
+      const hasNotif   = typeof Notification !== "undefined";
+      const hasPush    = "serviceWorker" in navigator && "PushManager" in window;
+
+      if (isIOS && !isStandalone) {
+        setState("ios-browser");
+        return;
+      }
+      if (isIOS && isStandalone) {
+        const match = ua.match(/OS (\d+)[_\.]/);
+        const ver   = match ? parseInt(match[1]) : 0;
+        setIOSVer(ver);
+        if (ver < 16 || !hasNotif || !hasPush) {
+          setState("ios-old");
+          return;
+        }
+      }
+      if (!hasNotif || !hasPush) {
+        setState("unsupported");
+        return;
+      }
+      setState(Notification.permission); // "default" | "granted" | "denied"
+    } catch(e) {
+      setState("unsupported");
+    }
+
+    // Fetch VAPID key
     fetch(`${API_BASE}/api/push/vapid-public-key`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.key) setVapidKey(d.key); })
       .catch(() => {});
   },[]);
+
+
 
   const enable = async () => {
     if (!vapidKey) {
@@ -1536,6 +1550,11 @@ function NotificationSettings() {
         <div className="section-title" style={{marginBottom:4}}><Icon name="bell" size={13} color="var(--text3)"/>Push Notifications</div>
         <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Get real-time alerts on your phone or browser — even when the app is in the background.</div>
 
+        {state==="loading" && (
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",color:"var(--text3)",fontSize:13}}>
+            <Spinner size={16}/> Checking notification support…
+          </div>
+        )}
         {state==="ios-browser" && (
           <div style={{borderRadius:10,overflow:"hidden"}}>
             <div style={{background:"linear-gradient(135deg,#1a1a2e,#16213e)",padding:20,textAlign:"center"}}>
@@ -1566,7 +1585,7 @@ function NotificationSettings() {
             <Icon name="warn" size={14}/>
             <span style={{fontSize:13}}>
               Push notifications require <strong>iOS 16.4 or later</strong>. 
-              Your device is on iOS {iOSVersion}. Please update in iPhone Settings → General → Software Update.
+              Your device is on iOS {iOSVer}. Please update in iPhone Settings → General → Software Update.
             </span>
           </div>
         )}
@@ -1576,7 +1595,7 @@ function NotificationSettings() {
         {state==="denied" && (
           <div className="alert alert-error"><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>Notifications are blocked. Go to browser settings → Site Settings → Notifications → Allow librarydesk.in</span></div>
         )}
-        {state!=="unsupported" && state!=="denied" && state!=="ios-browser" && state!=="ios-old" && (
+        {state!=="loading" && state!=="unsupported" && state!=="denied" && state!=="ios-browser" && state!=="ios-old" && (
           <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
             {state==="granted" ? (
               <>
