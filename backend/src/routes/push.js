@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const webpush = require('web-push');
-const pool    = require('../db');
+const pool    = require('../db/pool');
 const { authenticateToken } = require('../middleware/auth');
 
 // ── VAPID Keys (set in env, or auto-generate once) ──
@@ -11,6 +11,9 @@ const VAPID_EMAIL   = process.env.VAPID_EMAIL || 'mailto:support@librarydesk.in'
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
+  console.log('[Push] VAPID configured ✓');
+} else {
+  console.warn('[Push] WARNING: VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY not set in environment. Push notifications will not work.');
 }
 
 // ── Auto-create push_subscriptions table ──
@@ -33,7 +36,10 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 
 // ── GET /api/push/vapid-public-key ──
 router.get('/vapid-public-key', (req, res) => {
-  res.json({ key: VAPID_PUBLIC || null });
+  res.json({ 
+    key: VAPID_PUBLIC || null,
+    configured: !!(VAPID_PUBLIC && VAPID_PRIVATE)
+  });
 });
 
 // ── POST /api/push/subscribe ── Save push subscription
