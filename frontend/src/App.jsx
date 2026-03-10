@@ -773,13 +773,19 @@ function Attendance({ library }) {
 
   const qrUrl = `https://libra-backend-gjgo.onrender.com/checkin/${library?.id}`;
 
+  const [loadError, setLoadError] = useState("");
+
   const load = async () => {
     setLoading(true);
+    setLoadError("");
     try {
-      if (tab==="today")   { const r = await api.attendance.today(); setToday(r); }
-      if (tab==="history") { const r = await api.attendance.history({ from:fromDate, to:toDate }); setHistory(r); }
-      if (tab==="summary") { const r = await api.attendance.summary(summaryMonth); setSummary(r); }
-    } catch(e){ console.error(e); }
+      if (tab==="today")   { const r = await api.attendance.today();                                setToday(Array.isArray(r)?r:[]); }
+      if (tab==="history") { const r = await api.attendance.history({ from:fromDate, to:toDate });  setHistory(Array.isArray(r)?r:[]); }
+      if (tab==="summary") { const r = await api.attendance.summary(summaryMonth);                  setSummary(Array.isArray(r)?r:[]); }
+    } catch(e) {
+      console.error("Attendance load error:", e);
+      setLoadError(e.message || "Failed to load attendance");
+    }
     finally { setLoading(false); }
   };
 
@@ -836,6 +842,7 @@ function Attendance({ library }) {
               <div className="stat-value">{today.filter(a=>a.check_out).length}</div>
             </div>
           </div>
+          {loadError && <div className="alert alert-error" style={{marginBottom:12}}><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>{loadError}</span></div>}
           {loading ? <div style={{textAlign:"center",padding:40}}><Spinner size={28}/></div> :
             today.length===0 ? (
               <div className="card"><div className="empty-state">
@@ -1484,16 +1491,37 @@ function NotificationSettings() {
 
     // Fetch VAPID key
     fetch(`${API_BASE}/api/push/vapid-public-key`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.key) setVapidKey(d.key); })
-      .catch(() => {});
+      .then(r => r.ok ? r.json() : Promise.reject('network'))
+      .then(d => {
+        if (d?.key) {
+          setVapidKey(d.key);
+        } else {
+          // Backend reachable but VAPID not configured (env vars missing on server)
+          setMsg("⚙️ Push service is not configured on the server yet. Contact support.");
+        }
+      })
+      .catch(() => {
+        setMsg("Cannot reach server. Check your internet connection.");
+      });
   },[]);
 
 
 
   const enable = async () => {
     if (!vapidKey) {
-      setMsg("Could not reach push service. Check your internet connection and try again.");
+      // Re-check why vapidKey is missing
+      try {
+        const r = await fetch(`${API_BASE}/api/push/vapid-public-key`);
+        const d = await r.json();
+        if (!d?.key) {
+          setMsg("⚙️ Push service is not configured on the server. Please add VAPID keys in Render environment variables.");
+        } else {
+          setVapidKey(d.key);
+          setMsg("Loaded! Please tap Enable again.");
+        }
+      } catch(e) {
+        setMsg("Cannot reach server. Check your internet connection.");
+      }
       return;
     }
     try {
