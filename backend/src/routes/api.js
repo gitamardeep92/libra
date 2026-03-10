@@ -5,6 +5,103 @@ const pool    = require('../db/pool');
 const auth    = require('../middleware/auth');
 
 const router = express.Router();
+
+// ── PUBLIC ROUTES (no auth) ──────────────────────────────────────────────────
+// Auto-create attendance table if not exists
+const ensureAttendanceTable = async () => {
+  // Create without FK constraints to avoid type mismatch on fresh deploys
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS attendance (
+      id SERIAL PRIMARY KEY,
+      library_id UUID NOT NULL,
+      student_id INTEGER NOT NULL,
+      check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      check_out TIMESTAMPTZ,
+      date DATE NOT NULL DEFAULT CURRENT_DATE,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`);
+};
+ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
+
+// PUBLIC: Student check-in via QR (no auth — uses library token in URL)
+// GET /api/attendance/qr-info/:libraryToken  — get library name for QR page
+router.get('/attendance/qr-info/:token', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, library_name, city FROM libraries WHERE id=$1 AND is_active=TRUE`,
+      [req.params.token]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Library not found' });
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PUBLIC: Student check-in — POST /api/attendance/checkin
+router.post('/attendance/checkin', async (req, res) => {
+  const { libraryId, phone } = req.body;
+  if (!libraryId || !phone) return res.status(400).json({ error: 'Missing libraryId or phone' });
+  // Normalize phone — strip country code, keep last 10 digits
+  const normalizedPhone = phone.replace(/\D/g,'').slice(-10);
+  try {
+    // Verify student belongs to this library and is active — match by phone
+    const st = await pool.query(
+      `SELECT s.id, s.name, s.phone,
+              sub.end_date, sub.plan_name, sub.shift_id,
+              sh.name as shift_name
+       FROM students s
+       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+       LEFT JOIN shifts sh ON sh.id=sub.shift_id
+       WHERE RIGHT(REGEXP_REPLACE(s.phone,'\\D','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
+      [libraryId, normalizedPhone]
+    );
+    if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
+
+    const student = st.rows[0];
+    const studentId = student.id;
+
+    // Check if already checked in today (no check-out yet)
+    const existing = await pool.query(
+      `SELECT id FROM attendance WHERE library_id=$1 AND student_id=$2 AND date=CURRENT_DATE AND check_out IS NULL`,
+      [libraryId, studentId]
+    );
+
+    if (existing.rows.length) {
+      // Already checked in — do check-out
+      await pool.query(
+        `UPDATE attendance SET check_out=NOW() WHERE id=$1`,
+        [existing.rows[0].id]
+      );
+      return res.json({ action: 'checkout', student, message: `Goodbye ${student.name}! See you soon.` });
+    }
+
+    // Check-in
+    await pool.query(
+      `INSERT INTO attendance(library_id, student_id, date) VALUES($1,$2,CURRENT_DATE)`,
+      [libraryId, studentId]
+    );
+    // Push notification to library owner
+    if (pushNotify) {
+      pushNotify(libraryId, {
+        title: `✅ ${student.name} Checked In`,
+        body: `${student.shift_name ? student.shift_name + ' shift · ' : ''}Seat active`,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-96.png',
+        url: '/?page=attendance'
+      }).catch(()=>{});
+    }
+    res.json({ action: 'checkin', student, message: `Welcome ${student.name}!` });
+  } catch(err) {
+    console.error('[checkin error]', err.message, '| libraryId:', req.body?.libraryId, '| phone:', req.body?.phone);
+    res.status(500).json({ error: 'Server error', detail: err.message });
+  }
+});
+
+
+// ── PROTECTED ROUTES (JWT required) ─────────────────────────────────────────
 router.use(auth);  // every route below requires JWT
 
 // ─── helper ──────────────────────────────────────────────────────────────────
@@ -302,96 +399,6 @@ router.get('/reports/summary', async (req, res) => {
 
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
-
-// Auto-create attendance table if not exists
-const ensureAttendanceTable = async () => {
-  // Create without FK constraints to avoid type mismatch on fresh deploys
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id SERIAL PRIMARY KEY,
-      library_id UUID NOT NULL,
-      student_id INTEGER NOT NULL,
-      check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      check_out TIMESTAMPTZ,
-      date DATE NOT NULL DEFAULT CURRENT_DATE,
-      notes TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`);
-};
-ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
-
-// PUBLIC: Student check-in via QR (no auth — uses library token in URL)
-// GET /api/attendance/qr-info/:libraryToken  — get library name for QR page
-router.get('/attendance/qr-info/:token', async (req, res) => {
-  try {
-    const r = await pool.query(
-      `SELECT id, library_name, city FROM libraries WHERE id=$1 AND is_active=TRUE`,
-      [req.params.token]
-    );
-    if (!r.rows.length) return res.status(404).json({ error: 'Library not found' });
-    res.json(r.rows[0]);
-  } catch(err) { res.status(500).json({ error: 'Server error' }); }
-});
-
-// PUBLIC: Student check-in — POST /api/attendance/checkin
-router.post('/attendance/checkin', async (req, res) => {
-  const { libraryId, phone } = req.body;
-  if (!libraryId || !phone) return res.status(400).json({ error: 'Missing libraryId or phone' });
-  // Normalize phone — strip country code, keep last 10 digits
-  const normalizedPhone = phone.replace(/\D/g,'').slice(-10);
-  try {
-    // Verify student belongs to this library and is active — match by phone
-    const st = await pool.query(
-      `SELECT s.id, s.name, s.phone,
-              sub.end_date, sub.plan_name, sub.shift_id,
-              sh.name as shift_name
-       FROM students s
-       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
-       LEFT JOIN shifts sh ON sh.id=sub.shift_id
-       WHERE RIGHT(REGEXP_REPLACE(s.phone,'\\D','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
-      [libraryId, normalizedPhone]
-    );
-    if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
-
-    const student = st.rows[0];
-    const studentId = student.id;
-
-    // Check if already checked in today (no check-out yet)
-    const existing = await pool.query(
-      `SELECT id FROM attendance WHERE library_id=$1 AND student_id=$2 AND date=CURRENT_DATE AND check_out IS NULL`,
-      [libraryId, studentId]
-    );
-
-    if (existing.rows.length) {
-      // Already checked in — do check-out
-      await pool.query(
-        `UPDATE attendance SET check_out=NOW() WHERE id=$1`,
-        [existing.rows[0].id]
-      );
-      return res.json({ action: 'checkout', student, message: `Goodbye ${student.name}! See you soon.` });
-    }
-
-    // Check-in
-    await pool.query(
-      `INSERT INTO attendance(library_id, student_id, date) VALUES($1,$2,CURRENT_DATE)`,
-      [libraryId, studentId]
-    );
-    // Push notification to library owner
-    if (pushNotify) {
-      pushNotify(libraryId, {
-        title: `✅ ${student.name} Checked In`,
-        body: `${student.shift_name ? student.shift_name + ' shift · ' : ''}Seat active`,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-96.png',
-        url: '/?page=attendance'
-      }).catch(()=>{});
-    }
-    res.json({ action: 'checkin', student, message: `Welcome ${student.name}!` });
-  } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
-});
 
 // PRIVATE: Get today's attendance
 router.get('/attendance/today', async (req, res) => {
