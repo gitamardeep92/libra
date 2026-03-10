@@ -77,8 +77,16 @@ const styles = `
   html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);}
   .app{display:flex;height:100vh;overflow:hidden;}
 
+  /* MOBILE OVERLAY */
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;}
+  .sidebar-overlay.open{display:block;}
+
   /* SIDEBAR */
-  .sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;z-index:100;}
+  @media(max-width:768px){
+    .sidebar{position:fixed;top:0;left:0;bottom:0;transform:translateX(-100%);transition:transform .25s ease;}
+    .sidebar.open{transform:translateX(0);}
+  }
   .sidebar-logo{padding:22px 20px 18px;border-bottom:1px solid var(--border);}
   .logo-badge{display:flex;align-items:center;gap:10px;}
   .logo-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#4f46e5);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -97,7 +105,10 @@ const styles = `
   .admin-avatar{width:28px;height:28px;border-radius:8px;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-weight:700;font-size:12px;flex-shrink:0;}
 
   /* MAIN */
-  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  .hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;color:var(--text2);}
+  .hamburger:hover{background:var(--surface2);}
+  @media(max-width:768px){.hamburger{display:flex;align-items:center;justify-content:center;}}
   .topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;}
   .topbar-title{font-family:var(--font-display);font-size:18px;font-weight:700;}
   .topbar-sub{font-size:11px;color:var(--text3);margin-top:1px;}
@@ -1475,6 +1486,7 @@ function Plans() {
 // ══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [admin, setAdmin]   = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage]     = useState("dashboard");
   const [loading, setLoading] = useState(true);
 
@@ -1506,7 +1518,8 @@ export default function App() {
     <>
       <style>{styles}</style>
       <div className="app">
-        <aside className="sidebar">
+        <div className={`sidebar-overlay${sidebarOpen?" open":""}`} onClick={()=>setSidebarOpen(false)}/>
+        <aside className={`sidebar${sidebarOpen?" open":""}`}>
           <div className="sidebar-logo">
             <div className="logo-badge">
               <div className="logo-icon">
@@ -1520,7 +1533,7 @@ export default function App() {
             <div className="nav-section">
               <div className="nav-label">Main</div>
               {navItems.filter(i=>i.section==="main").map(i=>(
-                <button key={i.id} className={`nav-item${page===i.id?" active":""}`} onClick={()=>setPage(i.id)}>
+                <button key={i.id} className={`nav-item${page===i.id?" active":""}`} onClick={()=>{setPage(i.id);setSidebarOpen(false);}}>
                   <Icon name={i.icon} size={15}/>{i.label}
                 </button>
               ))}
@@ -1528,7 +1541,7 @@ export default function App() {
             <div className="nav-section">
               <div className="nav-label">Manage</div>
               {navItems.filter(i=>i.section==="manage").map(i=>(
-                <button key={i.id} className={`nav-item${page===i.id?" active":""}`} onClick={()=>setPage(i.id)}>
+                <button key={i.id} className={`nav-item${page===i.id?" active":""}`} onClick={()=>{setPage(i.id);setSidebarOpen(false);}}>
                   <Icon name={i.icon} size={15}/>{i.label}
                 </button>
               ))}
@@ -1537,7 +1550,7 @@ export default function App() {
           <div className="sidebar-footer">
             <div className="admin-info">
               <div className="admin-avatar">{admin.name?.[0]?.toUpperCase()||"A"}</div>
-              <div><div style={{fontSize:12,fontWeight:600}}>{admin.name}</div><div style={{fontSize:10,color:"var(--text3)"}}>{admin.role}</div></div>
+              <div><div style={{fontSize:12,fontWeight:600}}>Amardeep</div><div style={{fontSize:10,color:"var(--text3)"}}>{admin.role}</div></div>
             </div>
             <button className="nav-item" onClick={()=>{clearToken();setAdmin(null);}} style={{color:"var(--red)"}}>
               <Icon name="logout" size={14}/>Sign Out
@@ -1547,6 +1560,9 @@ export default function App() {
 
         <main className="main">
           <div className="topbar">
+            <button className="hamburger" onClick={()=>setSidebarOpen(o=>!o)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             <div>
               <div className="topbar-title">{titles[page]}</div>
               <div className="topbar-sub">{subs[page]}</div>
