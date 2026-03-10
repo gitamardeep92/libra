@@ -1470,11 +1470,19 @@ function NotificationSettings() {
   const [msg,      setMsg]     = useState("");
 
   useEffect(()=>{
-    api.push.vapidKey().then(d=>{ if(d?.key) setVapidKey(d.key); }).catch(()=>{});
+    // Fetch VAPID key directly — no auth needed, plain public endpoint
+    const base = import.meta.env.VITE_API_URL || '';
+    fetch(`${base}/api/push/vapid-public-key`)
+      .then(r => r.json())
+      .then(d => { if (d?.key) setVapidKey(d.key); })
+      .catch(() => {});
   },[]);
 
   const enable = async () => {
-    if (!vapidKey) { setMsg("Push service not configured yet."); return; }
+    if (!vapidKey) {
+      setMsg("Could not reach push service. Check your internet connection and try again.");
+      return;
+    }
     try {
       // Must call requestPermission directly (important for iOS PWA)
       const perm = await Notification.requestPermission();
