@@ -2369,7 +2369,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
                   // If sub is expired, start from expiry date; if still active, start from day after expiry
                   const renewStart=expDate?(daysDiff(expDate)<0?expDate:addDays(expDate,1)):today();
                   setEditSub(null);setForm({...emptyForm,studentId:s.student_id,planId:s.plan_id||"",seatNumber:String(s.seat_number||""),shiftId:s.shift_id||"",startDate:renewStart,notes:"Renewal",isRenewal:true});setShowModal(true);}}>Renew</button>
-                {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>setCancelConfirm(s)}>Cancel</button>}
+                {!exp&&<button className="btn btn-danger btn-sm" onClick={()=>{setShowModal(false);setCancelConfirm(s);}}>Cancel</button>}
               </div></td>
             </tr>);
           })}
@@ -2402,33 +2402,7 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
             </div>
           </div>
 
-          {/* Duplicate active sub warning */}
-          {/* Cancel Confirmation */}
-          {cancelConfirm && (
-            <div className="modal-overlay">
-              <div className="modal" style={{maxWidth:400}}>
-                <div className="modal-header">
-                  <h2 className="modal-title" style={{color:"var(--red)"}}>Cancel Subscription?</h2>
-                  <button className="btn btn-ghost btn-icon" onClick={()=>setCancelConfirm(null)}><Icon name="x" size={17}/></button>
-                </div>
-                <div className="modal-body">
-                  <div className="alert alert-error" style={{marginBottom:14}}>
-                    <Icon name="warn" size={16} color="var(--red)"/>
-                    <span style={{fontSize:13}}>This action cannot be undone.</span>
-                  </div>
-                  <div style={{fontSize:14,marginBottom:8}}>You are about to cancel the subscription for:</div>
-                  <div style={{background:"var(--surface2)",borderRadius:9,padding:"12px 14px",marginBottom:4}}>
-                    <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{cancelConfirm.student_name}</div>
-                    <div style={{fontSize:13,color:"var(--text2)"}}>{cancelConfirm.plan_name} · Expires {formatDate(cancelConfirm.end_date)}</div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={()=>setCancelConfirm(null)}>Keep Subscription</button>
-                  <button className="btn btn-danger" onClick={()=>cancel(cancelConfirm.id)}>Yes, Cancel It</button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Cancel Confirmation Modal moved outside showModal */}
           {existingActiveSub&&<div className="alert alert-warning"><Icon name="warn" size={14} color="var(--accent)"/><span style={{fontSize:13}}>This student already has an active <strong>{existingActiveSub.plan_name}</strong> subscription expiring <strong>{formatDate(existingActiveSub.end_date)}</strong>. Cancel it first or use Edit.</span></div>}
 
           {selectedPlan&&<div className="alert alert-success"><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>Duration: <strong>{selectedPlan.duration}d</strong> · End: <strong>{formatDate(endDate)}</strong> · Payable: <strong>{formatCurrency(effectiveAmount)}</strong></span></div>}
@@ -2506,6 +2480,32 @@ function Reminders({ data, reload, readonly=false }) {
       {pending.length>0&&<div style={{marginBottom:24}}><div className="section-title"><Icon name="bell" size={13} color="var(--text3)"/>Pending ({pending.length})</div>{pending.map(r=>{const diff=daysDiff(r.due_date);return(<div key={r.id} className={`reminder-chip ${getClass(r)}`}><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}><span className={`badge ${typeColor[r.type]||"badge-gray"}`} style={{textTransform:"capitalize",fontSize:11}}>{r.type}</span>{r.student_name&&<span style={{fontSize:13,fontWeight:600}}>{r.student_name}</span>}<span className="text-xs text-muted">{r.student_phone}</span></div><div style={{fontSize:13.5}}>{r.message}</div><div style={{display:"flex",gap:12,marginTop:5,flexWrap:"wrap"}}><span className="text-xs text-muted">Due: {formatDate(r.due_date)}</span>{diff<0?<span className="text-xs text-red font-bold">Overdue {Math.abs(diff)}d</span>:diff===0?<span className="text-xs text-accent font-bold">Due today</span>:<span className="text-xs" style={{color:diff<=3?"var(--red)":"var(--text3)"}}>in {diff}d</span>}{(()=>{const stuSub=(data.subscriptions||[]).find(sub=>sub.student_id===r.student_id&&sub.status==="active");return stuSub?<span className="text-xs text-muted">· Sub expires: <strong style={{color:daysDiff(stuSub.end_date)<=3?"var(--red)":"var(--text)"}}>{formatDate(stuSub.end_date)}</strong></span>:null;})()}</div></div><div className="flex gap-2">{r.student_phone&&<button className="btn btn-ghost btn-icon" title="Send WhatsApp" onClick={()=>openWhatsApp(r.student_phone,`Hi ${r.student_name||'there'}, ${r.message}. Please visit the library at your earliest convenience. Thank you!`)} style={{color:"#25D366"}}><Icon name="whatsapp" size={15} color="#25D366"/></button>}<button className="btn btn-ghost btn-icon" onClick={()=>toggle(r.id)}><Icon name="check" size={15} color="var(--green)"/></button><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={15} color="var(--red)"/></button></div></div>);})}</div>}
       {done.length>0&&<div><div className="section-title">Completed ({done.length})</div>{done.map(r=><div key={r.id} className="reminder-chip ok" style={{opacity:0.5}}><Icon name="check" size={14} color="var(--green)"/><div style={{flex:1}}><div style={{fontSize:13,textDecoration:"line-through"}}>{r.message}</div><div className="text-xs text-muted">Due {formatDate(r.due_date)}</div></div><button className="btn btn-ghost btn-icon" onClick={()=>del(r.id)}><Icon name="trash" size={14} color="var(--text3)"/></button></div>)}</div>}
       {reminders.length===0&&<div className="card"><div className="empty-state"><div className="empty-icon"><Icon name="bell" size={24} color="var(--text3)"/></div><div className="empty-title">No reminders</div><div className="empty-sub">Renewal reminders are auto-created on subscription</div></div></div>}
+      {cancelConfirm && (
+        <div className="modal-overlay">
+          <div className="modal" style={{maxWidth:400}}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{color:"var(--red)"}}>Cancel Subscription?</h2>
+              <button className="btn btn-ghost btn-icon" onClick={()=>setCancelConfirm(null)}><Icon name="x" size={17}/></button>
+            </div>
+            <div className="modal-body">
+              <div className="alert alert-error" style={{marginBottom:14}}>
+                <Icon name="warn" size={16} color="var(--red)"/>
+                <span style={{fontSize:13}}>This action cannot be undone.</span>
+              </div>
+              <div style={{fontSize:14,marginBottom:8}}>You are about to cancel the subscription for:</div>
+              <div style={{background:"var(--surface2)",borderRadius:9,padding:"12px 14px",marginBottom:4}}>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{cancelConfirm.student_name}</div>
+                <div style={{fontSize:13,color:"var(--text2)"}}>{cancelConfirm.plan_name} · Expires {formatDate(cancelConfirm.end_date)}</div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setCancelConfirm(null)}>Keep Subscription</button>
+              <button className="btn btn-danger" onClick={()=>cancel(cancelConfirm.id)}>Yes, Cancel It</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal&&<div className="modal-overlay"><div className="modal"><div className="modal-header"><h2 className="modal-title">Add Reminder</h2><button className="btn btn-ghost btn-icon" onClick={()=>setShowModal(false)}><Icon name="x" size={17}/></button></div><div className="modal-body"><div className="form-group"><label className="label">Student (optional)</label><select className="input select" value={form.studentId} onChange={e=>set("studentId",e.target.value)}><option value="">No specific student</option>{(data.students||[]).map(s=><option key={s.id} value={s.id}>{s.name} — {s.phone}</option>)}</select></div><div className="form-row"><div className="form-group"><label className="label">Type</label><select className="input select" value={form.type} onChange={e=>set("type",e.target.value)}>{["payment","renewal","followup","custom"].map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}</select></div><div className="form-group"><label className="label">Due Date</label><input className="input" type="date" value={form.dueDate} onChange={e=>set("dueDate",e.target.value)}/></div></div><div className="form-group"><label className="label">Message *</label><textarea className="input textarea" placeholder="Reminder message…" value={form.message} onChange={e=>set("message",e.target.value)}/></div></div><div className="modal-footer"><button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Add</button></div></div></div>}
     </div>
   );
