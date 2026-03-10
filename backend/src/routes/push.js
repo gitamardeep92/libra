@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const webpush = require('web-push');
 const pool    = require('../db/pool');
-const { authenticateToken } = require('../middleware/auth');
+const authenticateToken = require('../middleware/auth');
 
 // ── VAPID Keys (set in env, or auto-generate once) ──
 const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY;
