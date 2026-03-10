@@ -305,11 +305,12 @@ router.get('/reports/summary', async (req, res) => {
 
 // Auto-create attendance table if not exists
 const ensureAttendanceTable = async () => {
+  // Create without FK constraints to avoid type mismatch on fresh deploys
   await pool.query(`
     CREATE TABLE IF NOT EXISTS attendance (
       id SERIAL PRIMARY KEY,
-      library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
-      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      library_id UUID NOT NULL,
+      student_id INTEGER NOT NULL,
       check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       check_out TIMESTAMPTZ,
       date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -320,7 +321,7 @@ const ensureAttendanceTable = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS att_lib_date ON attendance(library_id, date)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`);
 };
-ensureAttendanceTable().catch(console.error);
+ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
 
 // PUBLIC: Student check-in via QR (no auth — uses library token in URL)
 // GET /api/attendance/qr-info/:libraryToken  — get library name for QR page

@@ -99,14 +99,19 @@ async function sendPushToLibrary(libraryId, payload) {
 
 // ── POST /api/push/test ── Test notification
 router.post('/test', authenticateToken, async (req, res) => {
+  console.log('[Push] Test notification for library:', req.libraryId);
+  // Clean up any null library_id subscriptions from previous bug
+  await pool.query('DELETE FROM push_subscriptions WHERE library_id IS NULL').catch(()=>{});
+  const subs = await pool.query('SELECT COUNT(*) FROM push_subscriptions WHERE library_id=$1', [req.libraryId]);
+  console.log('[Push] Subscriptions found:', subs.rows[0].count);
   await sendPushToLibrary(req.libraryId, {
     title: '🔔 LibraryDesk Notifications',
-    body: 'Push notifications are working!',
+    body: 'Push notifications are working! ✅',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-96.png',
     url: '/'
   });
-  res.json({ ok: true });
+  res.json({ ok: true, subscriptions: subs.rows[0].count });
 });
 
 module.exports = { router, sendPushToLibrary };
