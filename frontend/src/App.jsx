@@ -779,6 +779,7 @@ function Attendance({ library }) {
     setLoading(true);
     setLoadError("");
     try {
+      if (!api.attendance) throw new Error("api.attendance not defined - check api.js build");
       if (tab==="today")   { const r = await api.attendance.today();                                setToday(Array.isArray(r)?r:[]); }
       if (tab==="history") { const r = await api.attendance.history({ from:fromDate, to:toDate });  setHistory(Array.isArray(r)?r:[]); }
       if (tab==="summary") { const r = await api.attendance.summary(summaryMonth);                  setSummary(Array.isArray(r)?r:[]); }
