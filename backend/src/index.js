@@ -33,8 +33,17 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
+const { router: pushRouter } = require('./routes/push');
+
+// Public push endpoint — BEFORE any auth, no token needed
+app.get('/api/push/vapid-public-key', (req, res) => {
+  const key = process.env.VAPID_PUBLIC_KEY || null;
+  res.json({ key, configured: !!(key && process.env.VAPID_PRIVATE_KEY) });
+});
+
 app.use('/api/auth',  authRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/push',  pushRouter);
 app.use('/api',       apiRouter);
 
 
