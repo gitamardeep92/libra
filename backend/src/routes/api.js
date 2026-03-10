@@ -102,6 +102,15 @@ router.post('/attendance/checkin', async (req, res) => {
         `UPDATE attendance SET check_out=NOW() WHERE id=$1`,
         [existing.rows[0].id]
       );
+      if (pushNotify) {
+        pushNotify(libraryId, {
+          title: `👋 ${student.name} Checked Out`,
+          body: `Left the library`,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-96.png',
+          url: '/?page=attendance'
+        }).catch(()=>{});
+      }
       return res.json({ action: 'checkout', student, message: `Goodbye ${student.name}! See you soon.` });
     }
 
