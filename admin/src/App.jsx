@@ -46,6 +46,10 @@ const api = {
     addNote:   (b)      => req('/api/admin/tools/notes', { method:'POST', body:JSON.stringify(b) }),
     delNote:   (id)     => req(`/api/admin/tools/notes/${id}`, { method:'DELETE' }),
   },
+  push: {
+    send: (b) => req('/api/admin/push/send', { method:'POST', body:JSON.stringify(b) }),
+    stats: () => req('/api/admin/push/stats'),
+  },
 };
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
@@ -232,6 +236,14 @@ const Icon = ({ name, size=16, color="currentColor" }) => {
     marketing: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
     plan:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>,
     link:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>,
+    edit:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    trash:  <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+    home:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+    reports:<svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+    tag:    <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+    bell:   <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+    key:    <svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
+    impersonate:<svg {...s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   };
   return icons[name] || null;
 };
@@ -756,6 +768,36 @@ function Marketing() {
   const [sentCount, setSentCount] = useState(0);
   const [waStep, setWaStep]       = useState("compose"); // compose | preview | sending | done
 
+  // ── Push Notifications ──
+  const [pushTitle,   setPushTitle]   = useState("");
+  const [pushBody,    setPushBody]    = useState("");
+  const [pushUrl,     setPushUrl]     = useState("/");
+  const [pushAudience,setPushAudience]= useState("all"); // all | specific
+  const [pushLibs,    setPushLibs]    = useState([]);    // selected library ids
+  const [pushSending, setPushSending] = useState(false);
+  const [pushResult,  setPushResult]  = useState(null);  // {sent, failed}
+  const [pushStats,   setPushStats]   = useState(null);
+
+  useEffect(()=>{
+    api.push.stats().then(setPushStats).catch(()=>{});
+  },[]);
+
+  const sendPush = async () => {
+    if (!pushTitle.trim()||!pushBody.trim()) return;
+    setPushSending(true); setPushResult(null);
+    try {
+      const r = await api.push.send({
+        title: pushTitle,
+        body:  pushBody,
+        url:   pushUrl||"/",
+        libraryIds: pushAudience==="all" ? null : pushLibs,
+      });
+      setPushResult(r);
+      setPushTitle(""); setPushBody(""); setPushUrl("/"); setPushLibs([]);
+    } catch(e) { setPushResult({error: e.message}); }
+    setPushSending(false);
+  };
+
   // ── Connect ──
   const [fbPage, setFbPage]       = useState(localStorage.getItem("ld_fb_page")||"");
   const [igHandle, setIgHandle]   = useState(localStorage.getItem("ld_ig_handle")||"");
@@ -873,6 +915,7 @@ function Marketing() {
       <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
         {tabBtn("post",      "Post Composer",    "📸")}
         {tabBtn("whatsapp",  "WhatsApp Blast",   "💬")}
+        {tabBtn("push",      "Push Notification","🔔")}
         {tabBtn("connect",   "Connect Accounts", "🔗")}
       </div>
 
@@ -1120,6 +1163,124 @@ www.librarydesk.in`],
       )}
 
       {/* ══════════ CONNECT ACCOUNTS ══════════ */}
+      {tab === "push" && (
+        <div style={{maxWidth:600}}>
+          {/* Stats bar */}
+          {pushStats && (
+            <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+              {[
+                {label:"Total Subscribers", value:pushStats.total||0, icon:"🔔"},
+                {label:"Active Libraries",  value:pushStats.libraries||0, icon:"🏛️"},
+              ].map(s=>(
+                <div key={s.label} style={{flex:1,minWidth:140,background:"var(--surface2)",borderRadius:10,padding:"12px 16px"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:"var(--accent)"}}>{s.icon} {s.value}</div>
+                  <div style={{fontSize:12,color:"var(--text2)",marginTop:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{background:"var(--surface)",borderRadius:12,padding:20,border:"1px solid var(--border)",marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>🔔 Send Push Notification</div>
+
+            {/* Audience */}
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:12,color:"var(--text2)",display:"block",marginBottom:6}}>AUDIENCE</label>
+              <div style={{display:"flex",gap:8}}>
+                {[["all","📢 All Libraries"],["specific","🎯 Specific Libraries"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>setPushAudience(v)}
+                    style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${pushAudience===v?"var(--accent)":"var(--border)"}`,
+                      background:pushAudience===v?"var(--accent-dim)":"transparent",
+                      color:pushAudience===v?"var(--accent)":"var(--text2)",cursor:"pointer",fontSize:13,fontWeight:600}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Library selector */}
+            {pushAudience==="specific" && (
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12,color:"var(--text2)",display:"block",marginBottom:6}}>SELECT LIBRARIES</label>
+                <div style={{maxHeight:160,overflowY:"auto",border:"1px solid var(--border)",borderRadius:8,padding:8,display:"flex",flexDirection:"column",gap:4}}>
+                  {libraries.map(lib=>(
+                    <label key={lib.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",
+                      background:pushLibs.includes(lib.id)?"var(--accent-dim)":"transparent",fontSize:13}}>
+                      <input type="checkbox" checked={pushLibs.includes(lib.id)}
+                        onChange={e=>setPushLibs(prev=>e.target.checked?[...prev,lib.id]:prev.filter(id=>id!==lib.id))}/>
+                      <span style={{fontWeight:600}}>{lib.library_name}</span>
+                      <span style={{color:"var(--text3)",fontSize:12}}>{lib.city}</span>
+                    </label>
+                  ))}
+                </div>
+                {pushLibs.length>0 && <div style={{fontSize:12,color:"var(--accent)",marginTop:4}}>{pushLibs.length} selected</div>}
+              </div>
+            )}
+
+            {/* Title */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,color:"var(--text2)",display:"block",marginBottom:6}}>NOTIFICATION TITLE *</label>
+              <input value={pushTitle} onChange={e=>setPushTitle(e.target.value)} maxLength={60}
+                placeholder="e.g. 🎉 New Feature Available!"
+                style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,
+                  padding:"10px 12px",color:"var(--text)",fontSize:14,boxSizing:"border-box"}}/>
+              <div style={{fontSize:11,color:"var(--text3)",marginTop:3,textAlign:"right"}}>{pushTitle.length}/60</div>
+            </div>
+
+            {/* Body */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:12,color:"var(--text2)",display:"block",marginBottom:6}}>MESSAGE *</label>
+              <textarea value={pushBody} onChange={e=>setPushBody(e.target.value)} maxLength={120} rows={3}
+                placeholder="e.g. Check out the new attendance report feature in your dashboard."
+                style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,
+                  padding:"10px 12px",color:"var(--text)",fontSize:14,resize:"vertical",boxSizing:"border-box"}}/>
+              <div style={{fontSize:11,color:"var(--text3)",marginTop:3,textAlign:"right"}}>{pushBody.length}/120</div>
+            </div>
+
+            {/* URL */}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:12,color:"var(--text2)",display:"block",marginBottom:6}}>DEEP LINK (optional)</label>
+              <input value={pushUrl} onChange={e=>setPushUrl(e.target.value)}
+                placeholder="/ or /?page=students"
+                style={{width:"100%",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,
+                  padding:"10px 12px",color:"var(--text)",fontSize:14,boxSizing:"border-box"}}/>
+            </div>
+
+            {/* Preview */}
+            {(pushTitle||pushBody) && (
+              <div style={{marginBottom:16,background:"var(--bg)",borderRadius:10,padding:12,border:"1px solid var(--border)"}}>
+                <div style={{fontSize:11,color:"var(--text3)",marginBottom:8}}>PREVIEW</div>
+                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <img src="/icon-192.png" onError={e=>e.target.style.display="none"}
+                    style={{width:36,height:36,borderRadius:8,objectFit:"cover",flexShrink:0,background:"#1a2030"}}/>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{pushTitle||"Notification Title"}</div>
+                    <div style={{fontSize:12,color:"var(--text2)"}}>{pushBody||"Your message here..."}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>LibraryDesk · now</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button onClick={sendPush} disabled={pushSending||!pushTitle.trim()||!pushBody.trim()||(pushAudience==="specific"&&pushLibs.length===0)}
+              style={{width:"100%",padding:"12px",borderRadius:9,border:"none",
+                background:(pushTitle&&pushBody)?"var(--accent)":"var(--surface2)",
+                color:(pushTitle&&pushBody)?"#000":"var(--text3)",
+                fontWeight:700,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              {pushSending ? "Sending…" : `🔔 Send to ${pushAudience==="all"?"All Libraries":`${pushLibs.length} Libraries`}`}
+            </button>
+
+            {pushResult && (
+              <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,
+                background:pushResult.error?"rgba(220,50,50,0.1)":"rgba(50,200,100,0.1)",
+                border:`1px solid ${pushResult.error?"var(--red)":"var(--green)"}`,fontSize:13}}>
+                {pushResult.error ? `❌ Error: ${pushResult.error}` : `✅ Sent to ${pushResult.sent} device(s). ${pushResult.failed>0?`${pushResult.failed} failed.`:""}`}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {tab === "connect" && (
         <div style={{maxWidth:600}}>
           <div className="card" style={{marginBottom:12}}>

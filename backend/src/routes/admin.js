@@ -493,6 +493,63 @@ router.get('/invoices', adminAuth, async (req, res) => {
   res.json(r.rows);
 });
 
+// ── ADMIN PUSH NOTIFICATIONS ────────────────────────────────────────────────
+
+// GET /api/admin/push/stats — how many devices subscribed
+router.get('/push/stats', authenticateAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT COUNT(*) as total,
+             COUNT(DISTINCT library_id) as libraries
+      FROM push_subscriptions
+    `);
+    res.json({ total: parseInt(r.rows[0].total), libraries: parseInt(r.rows[0].libraries) });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/admin/push/send — broadcast to all or specific libraries
+router.post('/push/send', authenticateAdmin, async (req, res) => {
+  const { title, body, url, libraryIds } = req.body;
+  if (!title || !body) return res.status(400).json({ error: 'Title and body required' });
+
+  if (!sendPushToLibrary) return res.status(503).json({ error: 'Push service not available' });
+
+  try {
+    let targetIds;
+    if (libraryIds && libraryIds.length > 0) {
+      targetIds = libraryIds;
+    } else {
+      // All libraries with at least one push subscription
+      const r = await pool.query('SELECT DISTINCT library_id FROM push_subscriptions');
+      targetIds = r.rows.map(r => r.library_id);
+    }
+
+    let sent = 0, failed = 0;
+    for (const libId of targetIds) {
+      try {
+        await sendPushToLibrary(libId, {
+          title, body,
+          icon:  '/icons/icon-192.png',
+          badge: '/icons/icon-96.png',
+          url:   url || '/',
+          tag:   'admin-broadcast',
+        });
+        // Count subscriptions for this library
+        const c = await pool.query('SELECT COUNT(*) FROM push_subscriptions WHERE library_id=$1', [libId]);
+        sent += parseInt(c.rows[0].count);
+      } catch(e) {
+        failed++;
+      }
+    }
+
+    res.json({ sent, failed, libraries: targetIds.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 
 // ══════════════════════════════════════════════════════════════════════════════
