@@ -2254,7 +2254,15 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
     // Block seat time overlap
     if (form.seatNumber && form.shiftId) {
       const excludeId = editSub?.id || null;
-      if (hasTimeOverlap(form.seatNumber, form.shiftId, excludeId)) {
+      // For renewals: also exclude the student's own current active sub on this seat
+      // (they're renewing the same seat/shift — that's allowed)
+      const studentCurrentSub = form.isRenewal
+        ? (data.subscriptions||[]).find(s=>s.student_id===form.studentId && s.status==="active" && daysDiff(s.end_date)>=0)
+        : null;
+      const excludeId2 = studentCurrentSub?.id || null;
+      const hasOverlap = hasTimeOverlap(form.seatNumber, form.shiftId, excludeId) &&
+                         (!excludeId2 || hasTimeOverlap(form.seatNumber, form.shiftId, excludeId2));
+      if (hasOverlap) {
         setError("This shift overlaps with an existing subscription on that seat. Choose a different shift or seat.");
         return;
       }
@@ -2317,7 +2325,12 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   // ── Shift dropdown: disable shifts that overlap with existing seat bookings ─
   const shiftOption = (sh) => {
     if (!form.seatNumber) return { disabled: false, reason: "" };
-    const overlap = hasTimeOverlap(form.seatNumber, sh.id, editSub?.id||null);
+    // For renewals, exclude student's own current active sub from overlap check
+    const studentCurrentSub = form.isRenewal
+      ? (data.subscriptions||[]).find(s=>s.student_id===form.studentId && s.status==="active" && daysDiff(s.end_date)>=0)
+      : null;
+    const excludeId = editSub?.id || studentCurrentSub?.id || null;
+    const overlap = hasTimeOverlap(form.seatNumber, sh.id, excludeId);
     return { disabled: overlap, reason: overlap ? " — Overlaps existing booking" : "" };
   };
 
