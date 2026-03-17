@@ -430,6 +430,8 @@ const styles = `
     /* Marketing social tab: stack preview below content on mobile */
     .marketing-social-grid{grid-template-columns:1fr!important;}
     .marketing-social-preview{position:static!important;}
+    /* Marketing WhatsApp tab: stack filters + message on mobile */
+    .marketing-wa-grid{grid-template-columns:1fr!important;}
 
     /* Bar chart compact */
     .bar-chart{height:80px;}
@@ -1237,7 +1239,7 @@ function Marketing({ data, library }) {
       {/* ══ WHATSAPP TAB ══ */}
       {mainTab==="whatsapp" && (<>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div className="marketing-wa-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         {/* Filters */}
         <div className="card">
           <div className="section-title" style={{marginBottom:12}}><Icon name="users" size={13} color="var(--text3)"/>Filter Recipients</div>
@@ -2617,8 +2619,22 @@ function Reports({ data }) {
 export default function App() {
   const [library, setLibrary]     = useState(null);
   const [checking, setChecking]   = useState(true);
-  const [page, setPage]           = useState(() => localStorage.getItem("libra_page") || "dashboard");
-  const navigate = (p) => { setPage(p); localStorage.setItem("libra_page", p); };
+  const getInitialPage = () => {
+    // 1. Try URL hash first (most reliable on refresh)
+    const hash = window.location.hash.replace('#', '');
+    const validPages = ["dashboard","students","plans","shifts","subscriptions","seats","reminders","expenses","reports","attendance","marketing","settings","billing"];
+    if (hash && validPages.includes(hash)) return hash;
+    // 2. Fall back to localStorage
+    const stored = localStorage.getItem("libra_page");
+    if (stored && validPages.includes(stored)) return stored;
+    return "dashboard";
+  };
+  const [page, setPage] = useState(getInitialPage);
+  const navigate = (p) => {
+    setPage(p);
+    localStorage.setItem("libra_page", p);
+    window.location.hash = p;
+  };
 
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [notifState,  setNotifState]    = useState('default'); // 'default'|'granted'|'denied'
@@ -2704,7 +2720,7 @@ export default function App() {
   }, []);
 
   const handleAuth    = (lib) => { setLibrary(lib); };
-  const handleLogout  = ()    => { clearToken(); setLibrary(null); setData({ shifts:[], plans:[], students:[], subscriptions:[], reminders:[], expenses:[], totalSeats:30 }); };
+  const handleLogout  = ()    => { clearToken(); setLibrary(null); setData({ shifts:[], plans:[], students:[], subscriptions:[], reminders:[], expenses:[], totalSeats:30 }); window.location.hash = ''; };
   const handleUpdate  = (upd) => {
     setLibrary(prev => ({
       ...prev,
