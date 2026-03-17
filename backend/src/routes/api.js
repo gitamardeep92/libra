@@ -257,6 +257,17 @@ router.get('/subscriptions', async (req, res) => {
      FROM subscriptions sub
      JOIN students st ON st.id=sub.student_id
      WHERE sub.library_id=$1
+       AND NOT (
+         sub.end_date < CURRENT_DATE
+         AND sub.status != 'cancelled'
+         AND EXISTS (
+           SELECT 1 FROM subscriptions s2
+           WHERE s2.student_id = sub.student_id
+             AND s2.library_id = sub.library_id
+             AND s2.id != sub.id
+             AND s2.start_date > sub.start_date
+         )
+       )
      ORDER BY sub.created_at DESC`,
     [libId(req)]
   );
@@ -278,6 +289,11 @@ router.post('/subscriptions', async (req, res) => {
     reminderDate.setDate(reminderDate.getDate() - 3);
     const stResult = await client.query('SELECT name FROM students WHERE id=$1', [studentId]);
     const studentName = stResult.rows[0]?.name || 'Student';
+    // Mark any existing pending reminders for this student as done (they just renewed)
+    await client.query(
+      `UPDATE reminders SET done=true WHERE student_id=$1 AND library_id=$2 AND done=false AND type='renewal'`,
+      [libId(req), studentId]
+    );
     await client.query(
       `INSERT INTO reminders (library_id,student_id,message,type,due_date) VALUES ($1,$2,$3,'renewal',$4)`,
       [libId(req), studentId, `Subscription renewal for ${studentName} — plan: ${planName}`, reminderDate.toISOString().slice(0, 10)]

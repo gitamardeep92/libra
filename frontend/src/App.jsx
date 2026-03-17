@@ -427,6 +427,10 @@ const styles = `
     .seat-grid{grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px;}
     .seat{font-size:10px;}
 
+    /* Marketing social tab: stack preview below content on mobile */
+    .marketing-social-grid{grid-template-columns:1fr!important;}
+    .marketing-social-preview{position:static!important;}
+
     /* Bar chart compact */
     .bar-chart{height:80px;}
     .bar-label{font-size:9px;}
@@ -1116,7 +1120,7 @@ function Marketing({ data, library }) {
 
       {/* ══ SOCIAL MEDIA TAB ══ */}
       {mainTab==="social" && (
-        <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16,alignItems:"start"}}>
+        <div className="marketing-social-grid" style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16,alignItems:"start"}}>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {/* Caption */}
             <div className="card">
@@ -1203,7 +1207,7 @@ function Marketing({ data, library }) {
           </div>
 
           {/* Preview */}
-          <div style={{position:"sticky",top:16}}>
+          <div className="marketing-social-preview" style={{position:"sticky",top:16}}>
             <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid var(--border2)"}}>
               <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(45deg,var(--accent),var(--accent2))",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:800,fontSize:12}}>
