@@ -597,7 +597,6 @@ router.post('/email-blast', async (req, res) => {
       students = [{ id: lib.email, name: lib.owner_name, email: lib.email }];
     }
   } else {
-  } else {
     let studentsQuery;
     let studentsParams;
     if (recipientIds && recipientIds.length > 0) {
