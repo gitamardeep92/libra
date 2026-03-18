@@ -1023,6 +1023,7 @@ function Marketing({ data, library }) {
   const [msgTemplate, setMsgTemplate]       = useState("custom");
   const [customMsg, setCustomMsg]           = useState("");
   const [preview, setPreview]               = useState(null);
+  const [waStep, setWaStep]                 = useState(null); // null = not started, number = current index
 
   const templates = {
     renewal:  (s) => `Hi ${s.name}, your library subscription expires on ${formatDate(s.end_date)}. Please renew to continue your access. Visit us soon! — ${library?.library_name}`,
@@ -1057,11 +1058,16 @@ function Marketing({ data, library }) {
     return templates[msgTemplate](st);
   };
 
-  const sendAll = () => {
-    recipients.forEach(st => {
-      if (st.phone) openWhatsApp(st.phone, getMessage(st));
-    });
+  const startWaBlast = () => { if(recipients.length>0) setWaStep(0); };
+  const sendCurrentWa = () => {
+    const st = recipients[waStep];
+    if (st?.phone) openWhatsApp(st.phone, getMessage(st));
   };
+  const nextWaStudent = () => {
+    if (waStep < recipients.length - 1) setWaStep(w => w + 1);
+    else setWaStep(null); // finished
+  };
+  const cancelWaBlast = () => setWaStep(null);
 
   // ── Email Blast state ──
   const [emailSubject, setEmailSubject] = useState("");
@@ -1313,24 +1319,54 @@ function Marketing({ data, library }) {
       {mainTab==="social" && (
         <div className="marketing-social-grid" style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16,alignItems:"start"}}>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+            {/* How it works */}
+            <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 16px",fontSize:12.5,lineHeight:1.8,color:"var(--text2)"}}>
+              <strong style={{color:"var(--text)"}}>📋 How to post on Instagram & Facebook:</strong><br/>
+              <span style={{color:"var(--accent)",fontWeight:600}}>Step 1</span> Write your caption below &nbsp;·&nbsp;
+              <span style={{color:"var(--accent)",fontWeight:600}}>Step 2</span> Pick a free image &nbsp;·&nbsp;
+              <span style={{color:"var(--accent)",fontWeight:600}}>Step 3</span> Click <strong>"Download Post"</strong> — image downloads + caption is auto-copied &nbsp;·&nbsp;
+              <span style={{color:"var(--accent)",fontWeight:600}}>Step 4</span> Open Instagram/Facebook app → create post → paste caption → done!
+            </div>
+
             {/* Caption */}
             <div className="card">
               <div className="section-title" style={{marginBottom:10}}>✍️ Caption</div>
-              <textarea className="input" rows={5}
-                placeholder={`Write your post...
+              <textarea className="input" rows={6}
+                placeholder={`Write your post caption here...
 
 📚 Seats available at ${library?.library_name}!
 🕐 Morning, Evening & Full-day shifts
 💰 Affordable monthly plans
 📞 Contact us to book your seat
-#library #study #${library?.city||"india"}`}
+
+#library #study #${library?.city||"india"} #librarylife`}
                 value={caption} onChange={e=>setCaption(e.target.value)}
                 style={{resize:"vertical",lineHeight:1.7}}/>
-              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                {["📚 Seats Available","🎯 Limited Seats Left","💸 Special Offer","🏆 Success Story","📅 New Batch Starting"].map(t=>(
-                  <button key={t} className="btn btn-secondary btn-sm" onClick={()=>setCaption(c=>c+(c?"\n":"")+t)}>{t}</button>
-                ))}
+              <div style={{marginTop:8}}>
+                <div style={{fontSize:11,color:"var(--text3)",marginBottom:6}}>Quick add:</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {[
+                    ["📚 Seats Available","📚 Seats available now! Book yours today."],
+                    ["🎯 Limited Seats","🎯 Limited seats left — hurry up!"],
+                    ["💸 Special Offer","💸 Special offer this month on all plans!"],
+                    ["📅 New Batch","📅 New batch starting soon. Enroll now!"],
+                    ["🏆 Success","🏆 Proud of our students and their dedication!"],
+                  ].map(([label, text])=>(
+                    <button key={label} className="btn btn-secondary btn-sm"
+                      onClick={()=>setCaption(c=>c+(c?"
+
+":"")+text)}>{label}</button>
+                  ))}
+                </div>
               </div>
+              {caption && (
+                <div style={{marginTop:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"var(--text3)"}}>{caption.length} characters</span>
+                  <button className="btn btn-ghost btn-sm" style={{fontSize:11,color:"var(--text3)"}}
+                    onClick={()=>{ navigator.clipboard.writeText(caption); }}>📋 Copy Caption</button>
+                </div>
+              )}
             </div>
 
             {/* Image picker */}
@@ -1345,68 +1381,65 @@ function Marketing({ data, library }) {
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
                   {images.map(img=>(
                     <div key={img.id} onClick={()=>setSelImg(img)} style={{
-                      borderRadius:7,overflow:"hidden",cursor:"pointer",aspectRatio:"16/9",
-                      border:`2px solid ${selImg?.id===img.id?"var(--accent)":"transparent"}`,transition:"border .15s",
+                      borderRadius:7,overflow:"hidden",cursor:"pointer",aspectRatio:"1/1",
+                      border:`2px solid ${selImg?.id===img.id?"var(--accent)":"transparent"}`,
+                      transition:"border .15s",position:"relative",
                     }}>
                       <img src={img.urls.small} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      {selImg?.id===img.id && (
+                        <div style={{position:"absolute",top:4,right:4,background:"var(--accent)",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          <Icon name="check" size={10} color="white"/>
+                        </div>
+                      )}
                     </div>
                   ))}
+                  {images.length===0&&!imgLoading&&<div style={{gridColumn:"1/-1",textAlign:"center",padding:20,color:"var(--text3)",fontSize:13}}>Search for images above</div>}
                 </div>
               )}
               {selImg && <div style={{marginTop:6,fontSize:11,color:"var(--text3)"}}>Photo by <a href={selImg.user.links.html+"?utm_source=librarydesk&utm_medium=referral"} target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>{selImg.user.name}</a> on Unsplash</div>}
             </div>
 
-            {/* Share buttons */}
+            {/* Download button — the main action */}
             <div className="card">
-              <div className="section-title" style={{marginBottom:10}}>🚀 Share</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                <button className="btn btn-primary" onClick={shareToFacebook}
-                  style={{background:"#1877F2",borderColor:"#1877F2",gap:8,flex:1}}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-                  Post to Facebook
-                </button>
-                <button className="btn btn-primary" onClick={downloadPost}
-                  style={{background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",border:"none",gap:8,flex:1}}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                  ⬇️ Download for Instagram
-                </button>
-              </div>
-              <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
-                {downloaded && (
-                <div style={{width:"100%",padding:"10px 14px",background:"var(--green-dim)",border:"1px solid var(--green)",borderRadius:8,fontSize:13,color:"var(--green)",fontWeight:600,marginTop:4}}>
-                  ✅ Image downloading + caption copied!
+              <div className="section-title" style={{marginBottom:12}}>⬇️ Download & Post</div>
+              <button className="btn btn-primary" onClick={downloadPost}
+                style={{width:"100%",fontSize:15,padding:"12px 20px",gap:10,justifyContent:"center",
+                  background: selImg&&caption ? "var(--accent)" : "var(--surface3)",
+                  borderColor: selImg&&caption ? "var(--accent)" : "var(--border)",
+                  color: selImg&&caption ? "#000" : "var(--text3)",
+                }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v13M8 11l4 4 4-4"/><path d="M20 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2"/>
+                </svg>
+                {downloaded ? "✅ Downloaded! Now open Instagram / Facebook app" : "Download Post Image (Caption auto-copied)"}
+              </button>
+              {!selImg && <div style={{marginTop:8,fontSize:12,color:"var(--text3)",textAlign:"center"}}>Pick an image above first</div>}
+              {!caption && selImg && <div style={{marginTop:8,fontSize:12,color:"var(--text3)",textAlign:"center"}}>Write a caption above first</div>}
+
+              {downloaded && (
+                <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{padding:"10px 14px",background:"#1877F220",border:"1px solid #1877F2",borderRadius:8,fontSize:12.5,lineHeight:1.7}}>
+                    <strong style={{color:"#1877F2"}}>Facebook:</strong> Open Facebook app → tap "What's on your mind?" → tap 📷 → select downloaded image → paste caption → Post
+                  </div>
+                  <div style={{padding:"10px 14px",background:"#E1306C20",border:"1px solid #E1306C",borderRadius:8,fontSize:12.5,lineHeight:1.7}}>
+                    <strong style={{color:"#E1306C"}}>Instagram:</strong> Open Instagram app → tap + → select downloaded image → Next → paste caption → Share
+                  </div>
                 </div>
               )}
-              <div style={{width:"100%",padding:"10px 14px",background:"var(--surface2)",borderRadius:8,fontSize:12,color:"var(--text2)",lineHeight:1.7,marginTop:4}}>
-                <strong style={{color:"var(--text)"}}>📱 Instagram:</strong> Download image → open Instagram app → tap + → select image → paste caption → Post
-              </div>
-              <div className="form-group" style={{flex:1,marginBottom:0}}>
-                  <label className="label">Facebook Page</label>
-                  <input className="input" placeholder="YourPageName" value={fbPage} onChange={e=>setFbPage(e.target.value)}/>
-                </div>
-                <div className="form-group" style={{flex:1,marginBottom:0}}>
-                  <label className="label">Instagram Handle</label>
-                  <input className="input" placeholder="@yourlibrary" value={igHandle} onChange={e=>setIgHandle(e.target.value)}/>
-                </div>
-                <button className="btn btn-secondary" style={{alignSelf:"flex-end"}} onClick={()=>{
-                  localStorage.setItem("lib_fb_page",fbPage);
-                  localStorage.setItem("lib_ig_handle",igHandle);
-                  setSocialSaved(true); setTimeout(()=>setSocialSaved(false),2000);
-                }}>{socialSaved?"✅ Saved":"Save"}</button>
-              </div>
             </div>
           </div>
 
           {/* Preview */}
           <div className="marketing-social-preview" style={{position:"sticky",top:16}}>
+            <div style={{fontSize:11,color:"var(--text3)",marginBottom:6,textAlign:"center",textTransform:"uppercase",letterSpacing:1}}>Post Preview</div>
             <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid var(--border2)"}}>
               <div style={{padding:"10px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(45deg,var(--accent),var(--accent2))",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontWeight:800,fontSize:12}}>
+                <div style={{width:30,height:30,borderRadius:"50%",background:"linear-gradient(45deg,var(--accent),var(--accent2))",display:"flex",alignItems:"center",justifyContent:"center",color:"#000",fontWeight:800,fontSize:12}}>
                   {library?.library_name?.[0]||"L"}
                 </div>
                 <div>
                   <div style={{fontWeight:700,fontSize:12}}>{library?.library_name||"Your Library"}</div>
-                  <div style={{fontSize:10,color:"var(--text3)"}}>Sponsored</div>
+                  <div style={{fontSize:10,color:"var(--text3)"}}>Just now</div>
                 </div>
               </div>
               {selImg
@@ -1415,7 +1448,7 @@ function Marketing({ data, library }) {
               }
               <div style={{padding:"10px 14px"}}>
                 <div style={{display:"flex",gap:12,marginBottom:8,fontSize:18}}>❤️ 💬 📤 <span style={{marginLeft:"auto"}}>🔖</span></div>
-                <div style={{fontSize:12,lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:100,overflow:"hidden",color:"var(--text2)"}}>
+                <div style={{fontSize:12,lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:120,overflow:"hidden",color:"var(--text2)"}}>
                   {caption||<span style={{color:"var(--text3)"}}>Caption appears here…</span>}
                 </div>
               </div>
@@ -1427,6 +1460,72 @@ function Marketing({ data, library }) {
 
       {/* ══ WHATSAPP TAB ══ */}
       {mainTab==="whatsapp" && (<>
+
+      {/* Step-by-step sender modal */}
+      {waStep !== null && (
+        <div className="modal-overlay">
+          <div className="modal" style={{maxWidth:440}}>
+            <div className="modal-header">
+              <h2 className="modal-title" style={{color:"#25D366"}}>
+                <Icon name="whatsapp" size={18} color="#25D366"/> WhatsApp Blast
+              </h2>
+              <button className="btn btn-ghost btn-icon" onClick={cancelWaBlast}><Icon name="x" size={17}/></button>
+            </div>
+            <div className="modal-body">
+              {/* Progress */}
+              <div style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text3)",marginBottom:6}}>
+                  <span>Student {waStep+1} of {recipients.length}</span>
+                  <span style={{color:"var(--accent)",fontWeight:600}}>{Math.round(((waStep)/recipients.length)*100)}% done</span>
+                </div>
+                <div style={{height:4,background:"var(--surface2)",borderRadius:99,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:"#25D366",borderRadius:99,width:`${((waStep)/recipients.length)*100}%`,transition:"width 0.3s ease"}}/>
+                </div>
+              </div>
+
+              {/* Current student */}
+              <div style={{background:"var(--surface2)",borderRadius:10,padding:"14px 16px",marginBottom:14,border:"1px solid var(--border)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div className="avatar" style={{background:"var(--accent-dim)",color:"var(--accent)",width:38,height:38,fontSize:15,fontWeight:700,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {recipients[waStep]?.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14}}>{recipients[waStep]?.name}</div>
+                    <div style={{fontSize:12,color:"var(--text3)"}}>{recipients[waStep]?.phone}
+                      {recipients[waStep]?.shift_name && <span className="badge badge-purple" style={{fontSize:10,marginLeft:6}}>{recipients[waStep]?.shift_name}</span>}
+                    </div>
+                  </div>
+                </div>
+                {/* Message preview */}
+                <div style={{background:"#075e54",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#dcf8c6",lineHeight:1.6,fontStyle:"normal",whiteSpace:"pre-wrap"}}>
+                  {getMessage(recipients[waStep])}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{display:"flex",gap:10}}>
+                <button className="btn btn-primary" onClick={sendCurrentWa}
+                  style={{flex:1,background:"#25D366",borderColor:"#25D366",gap:8,fontSize:14}}>
+                  <Icon name="whatsapp" size={16} color="white"/>
+                  Open WhatsApp
+                </button>
+                {waStep < recipients.length-1 ? (
+                  <button className="btn btn-secondary" onClick={nextWaStudent} style={{flex:1,gap:6}}>
+                    Next Student →
+                  </button>
+                ) : (
+                  <button className="btn btn-secondary" onClick={cancelWaBlast} style={{flex:1,gap:6,color:"var(--green)",borderColor:"var(--green)"}}>
+                    ✅ All Done!
+                  </button>
+                )}
+              </div>
+              <div style={{marginTop:10,fontSize:11.5,color:"var(--text3)",textAlign:"center"}}>
+                Click "Open WhatsApp" → send the message → come back → click "Next Student"
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="marketing-wa-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
         {/* Filters */}
@@ -1446,8 +1545,7 @@ function Marketing({ data, library }) {
             <label className="label">Filter by Shift (select multiple)</label>
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
               {(data.shifts||[]).map(sh=>(
-                <div key={sh.id}
-                  onClick={()=>toggleShift(sh.id)}
+                <div key={sh.id} onClick={()=>toggleShift(sh.id)}
                   style={{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${selectedShifts.includes(sh.id)?"var(--accent)":"var(--border)"}`,background:selectedShifts.includes(sh.id)?"var(--accent-dim)":"var(--surface2)",color:selectedShifts.includes(sh.id)?"var(--accent)":"var(--text2)",transition:"all 0.15s"}}>
                   {sh.name} <span style={{opacity:0.7,fontSize:11}}>{sh.start_time}–{sh.end_time}</span>
                 </div>
@@ -1465,7 +1563,6 @@ function Marketing({ data, library }) {
         {/* Message */}
         <div className="card">
           <div className="section-title" style={{marginBottom:12}}><Icon name="whatsapp" size={13} color="#25D366"/>Message</div>
-
           <div className="form-group">
             <label className="label">Template</label>
             <select className="input select" value={msgTemplate} onChange={e=>setMsgTemplate(e.target.value)}>
@@ -1475,7 +1572,6 @@ function Marketing({ data, library }) {
               <option value="announce">General announcement</option>
             </select>
           </div>
-
           <div className="form-group">
             <label className="label">{msgTemplate==="custom"?"Message (use {name} and {library} as placeholders)":"Additional text (appended to template)"}</label>
             <textarea className="input textarea" rows={4}
@@ -1483,39 +1579,43 @@ function Marketing({ data, library }) {
               value={customMsg} onChange={e=>setCustomMsg(e.target.value)}
               style={{minHeight:90}}/>
           </div>
-
-          {recipients.length>0&&customMsg&&(
+          {recipients.length>0&&(customMsg||msgTemplate!=="custom")&&(
             <div style={{marginTop:4}}>
               <div className="text-xs text-muted" style={{marginBottom:4}}>Preview (first recipient):</div>
-              <div style={{background:"var(--surface3)",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"var(--text2)",lineHeight:1.6,fontStyle:"italic"}}>
-                "{getMessage(recipients[0])}"
+              <div style={{background:"#075e54",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#dcf8c6",lineHeight:1.6}}>
+                {getMessage(recipients[0])}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Recipient list */}
+      {/* Recipient list + Start Blast button */}
       {recipients.length>0&&(
         <div className="card" style={{padding:0}}>
-          <div style={{padding:"14px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div className="section-title" style={{margin:0}}><Icon name="users" size={13} color="var(--text3)"/>Recipients ({recipients.length})</div>
-            <button className="btn btn-primary" onClick={sendAll} disabled={!customMsg&&msgTemplate==="custom"}
-              style={{gap:8}}>
-              <Icon name="whatsapp" size={15} color="white"/>Send to All ({recipients.length})
+          <div style={{padding:"14px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+            <div>
+              <div className="section-title" style={{margin:0}}><Icon name="users" size={13} color="var(--text3)"/>Recipients ({recipients.length})</div>
+              <div style={{fontSize:11.5,color:"var(--text3)",marginTop:3}}>You will send one by one — WhatsApp opens for each student</div>
+            </div>
+            <button className="btn btn-primary" onClick={startWaBlast}
+              disabled={!customMsg&&msgTemplate==="custom"}
+              style={{gap:8,background:"#25D366",borderColor:"#25D366"}}>
+              <Icon name="whatsapp" size={15} color="white"/>Start Blast ({recipients.length})
             </button>
           </div>
           <div className="table-container">
-            <table className="table"><thead><tr><th>Student</th><th>Phone</th><th>Shift</th><th>Expires</th><th></th></tr></thead>
+            <table className="table"><thead><tr><th>#</th><th>Student</th><th>Phone</th><th>Shift</th><th>Expires</th><th></th></tr></thead>
             <tbody>
-              {recipients.map(st=>(
-                <tr key={st.id}>
+              {recipients.map((st,i)=>(
+                <tr key={st.id} style={{background: waStep===i?"var(--accent-dim)":""}}>
+                  <td className="text-xs text-muted">{i+1}</td>
                   <td><div style={{fontWeight:600}}>{st.name}</div></td>
                   <td className="text-sm">{st.phone}</td>
                   <td>{st.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{st.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td>
                   <td className="text-sm">{st.end_date?formatDate(st.end_date):<span className="text-muted">—</span>}</td>
                   <td>
-                    <button className="btn btn-ghost btn-icon" title="Send individual WhatsApp"
+                    <button className="btn btn-ghost btn-icon" title="Send now"
                       disabled={!customMsg&&msgTemplate==="custom"}
                       onClick={()=>openWhatsApp(st.phone, getMessage(st))} style={{color:"#25D366"}}>
                       <Icon name="whatsapp" size={14} color="#25D366"/>
