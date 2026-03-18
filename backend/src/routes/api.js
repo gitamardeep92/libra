@@ -7,6 +7,9 @@ const auth    = require('../middleware/auth');
 const router = express.Router();
 
 // ── PUBLIC ROUTES (no auth) ──────────────────────────────────────────────────
+// Health check — keeps Render server alive (used by UptimeRobot)
+router.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
+
 // Auto-create/fix attendance table
 const ensureAttendanceTable = async () => {
   // Check if student_id column is wrong type (INTEGER instead of UUID)
@@ -507,4 +510,165 @@ router.get('/attendance/summary', async (req, res) => {
   } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMAIL SETTINGS  (save / fetch SMTP config per library)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Ensure email_settings table exists (runs once on startup)
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_settings (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        library_id   UUID UNIQUE NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+        smtp_host    VARCHAR(255) NOT NULL DEFAULT 'smtp.gmail.com',
+        smtp_port    INTEGER      NOT NULL DEFAULT 587,
+        smtp_user    VARCHAR(255) NOT NULL,
+        smtp_pass    VARCHAR(255) NOT NULL,
+        from_name    VARCHAR(255),
+        created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch(e) { console.warn('[email_settings table]', e.message); }
+})();
+
+// GET /api/email-settings  — fetch current settings (password masked)
+router.get('/email-settings', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT smtp_host, smtp_port, smtp_user, from_name,
+              CASE WHEN smtp_pass IS NOT NULL AND smtp_pass != '' THEN '••••••••' ELSE '' END as smtp_pass_hint
+       FROM email_settings WHERE library_id=$1`,
+      [libId(req)]
+    );
+    res.json(r.rows[0] || null);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/email-settings  — upsert SMTP settings
+router.post('/email-settings', async (req, res) => {
+  const { smtpHost, smtpPort, smtpUser, smtpPass, fromName } = req.body;
+  if (!smtpUser || !smtpPass) return res.status(400).json({ error: 'smtpUser and smtpPass are required' });
+  try {
+    const r = await pool.query(`
+      INSERT INTO email_settings (library_id, smtp_host, smtp_port, smtp_user, smtp_pass, from_name)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (library_id) DO UPDATE SET
+        smtp_host  = EXCLUDED.smtp_host,
+        smtp_port  = EXCLUDED.smtp_port,
+        smtp_user  = EXCLUDED.smtp_user,
+        smtp_pass  = EXCLUDED.smtp_pass,
+        from_name  = EXCLUDED.from_name,
+        updated_at = NOW()
+      RETURNING smtp_host, smtp_port, smtp_user, from_name
+    `, [libId(req), smtpHost || 'smtp.gmail.com', smtpPort || 587, smtpUser, smtpPass, fromName || null]);
+    res.json({ ok: true, ...r.rows[0] });
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMAIL BLAST
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/email-blast  — send email to a list of students
+router.post('/email-blast', async (req, res) => {
+  const { subject, body, recipientIds } = req.body;
+  if (!subject || !body) return res.status(400).json({ error: 'subject and body are required' });
+
+  // 1. Load SMTP settings for this library
+  const cfgRes = await pool.query(
+    `SELECT smtp_host, smtp_port, smtp_user, smtp_pass, from_name FROM email_settings WHERE library_id=$1`,
+    [libId(req)]
+  );
+  if (!cfgRes.rows.length) {
+    return res.status(400).json({ error: 'Email not configured. Please set up your Gmail SMTP in Settings → Email Setup.' });
+  }
+  const cfg = cfgRes.rows[0];
+
+  // 2. Fetch recipients — either specific IDs or all active students with email
+  let students = [];
+
+  // Special case: test email — send to library owner
+  if (recipientIds && recipientIds.length === 1 && recipientIds[0] === "__self__") {
+    const libRes = await pool.query(`SELECT owner_name, email FROM libraries WHERE id=$1`, [libId(req)]);
+    if (libRes.rows.length) {
+      const lib = libRes.rows[0];
+      students = [{ id: lib.email, name: lib.owner_name, email: lib.email }];
+    }
+  } else {
+  } else {
+    let studentsQuery;
+    let studentsParams;
+    if (recipientIds && recipientIds.length > 0) {
+      studentsQuery = `SELECT id, name, email FROM students WHERE library_id=$1 AND id=ANY($2) AND email IS NOT NULL AND email != ''`;
+      studentsParams = [libId(req), recipientIds];
+    } else {
+      studentsQuery = `SELECT id, name, email FROM students WHERE library_id=$1 AND status='active' AND email IS NOT NULL AND email != ''`;
+      studentsParams = [libId(req)];
+    }
+    const studentsRes = await pool.query(studentsQuery, studentsParams);
+    students = studentsRes.rows;
+  }
+
+  if (!students.length) {
+    return res.status(400).json({ error: 'No students with email addresses found. Make sure students have emails saved.' });
+  }
+
+  // 3. Send emails using nodemailer
+  let nodemailer;
+  try { nodemailer = require('nodemailer'); } catch(e) {
+    return res.status(500).json({ error: 'nodemailer not installed. Run: npm install nodemailer' });
+  }
+
+  const transporter = nodemailer.createTransport({
+    host:   cfg.smtp_host,
+    port:   cfg.smtp_port,
+    secure: cfg.smtp_port === 465,
+    auth:   { user: cfg.smtp_user, pass: cfg.smtp_pass },
+  });
+
+  const results = { sent: [], failed: [] };
+
+  for (const student of students) {
+    // Replace placeholders in body
+    const personalizedBody = body
+      .replace(/\{name\}/g, student.name)
+      .replace(/\{Name\}/g, student.name);
+
+    const htmlBody = personalizedBody
+      .split('\n')
+      .map(line => `<p style="margin:0 0 8px">${line}</p>`)
+      .join('');
+
+    try {
+      await transporter.sendMail({
+        from: `"${cfg.from_name || 'Library'}" <${cfg.smtp_user}>`,
+        to:   student.email,
+        subject,
+        text: personalizedBody,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fff;border-radius:8px;border:1px solid #e0e0e0">
+            <h2 style="color:#4f46e5;margin:0 0 16px">${subject}</h2>
+            <div style="color:#333;font-size:15px;line-height:1.7">${htmlBody}</div>
+            <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
+            <p style="color:#999;font-size:12px;margin:0">You received this email because you are a member of ${cfg.from_name || 'our library'}.</p>
+          </div>`,
+      });
+      results.sent.push(student.email);
+    } catch(e) {
+      results.failed.push({ email: student.email, error: e.message });
+    }
+  }
+
+  res.json({
+    ok: true,
+    total: students.length,
+    sent: results.sent.length,
+    failed: results.failed.length,
+    failedList: results.failed,
+  });
+});
+
 module.exports = router;
+

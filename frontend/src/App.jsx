@@ -99,6 +99,10 @@ const styles = `
   @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px);}to{opacity:1;transform:none;}}
   @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
   @keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:none;}}
+  @keyframes splashFadeIn{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:none;}}
+  @keyframes splashBarFill{from{width:0%;}to{width:100%;}}
+  @keyframes splashPulse{0%,100%{opacity:0.5;transform:scale(1);}50%{opacity:1;transform:scale(1.08);}}
+  @keyframes splashDot{0%,80%,100%{opacity:0.2;transform:scale(0.8);}40%{opacity:1;transform:scale(1.2);}}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   :root{
     --bg:#0a0c10;--surface:#11141a;--surface2:#181c25;--surface3:#1e2330;
@@ -1013,7 +1017,7 @@ function Attendance({ library }) {
 
 function Marketing({ data, library }) {
   const UNSPLASH_KEY = import.meta.env.VITE_UNSPLASH_KEY || "";
-  const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | social
+  const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | email | social
   const [selectedShifts, setSelectedShifts] = useState([]);
   const [statusFilter, setStatusFilter]     = useState("active"); // active | expiring | all
   const [msgTemplate, setMsgTemplate]       = useState("custom");
@@ -1035,12 +1039,10 @@ function Marketing({ data, library }) {
     const activeSub = (data.subscriptions||[]).find(s =>
       s.student_id===st.id && s.status==="active" && daysDiff(s.end_date)>=0
     );
-    // Shift filter
     if (selectedShifts.length > 0) {
       if (!activeSub) return false;
       if (!selectedShifts.includes(activeSub.shift_id)) return false;
     }
-    // Status filter
     if (statusFilter==="active"   && !activeSub) return false;
     if (statusFilter==="expiring" && (!activeSub || daysDiff(activeSub.end_date)>7)) return false;
     if (statusFilter==="inactive") return st.status==="active" && !activeSub;
@@ -1059,6 +1061,55 @@ function Marketing({ data, library }) {
     recipients.forEach(st => {
       if (st.phone) openWhatsApp(st.phone, getMessage(st));
     });
+  };
+
+  // ── Email Blast state ──
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody,    setEmailBody]    = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResult,  setEmailResult]  = useState(null);
+  const [emailTemplate, setEmailTemplate] = useState("custom");
+
+  const emailTemplates = {
+    renewal:  `Hi {name},\n\nYour subscription at ${library?.library_name||"our library"} is expiring soon. Please renew at the earliest to continue accessing your seat.\n\nFor renewal, visit us or contact us directly.\n\nThank you,\n${library?.library_name||"Library Team"}`,
+    announce: `Dear {name},\n\nWe have an important update from ${library?.library_name||"our library"}.\n\n[Write your announcement here]\n\nThank you,\n${library?.library_name||"Library Team"}`,
+    offer:    `Hi {name},\n\n🎉 Special Offer from ${library?.library_name||"us"}!\n\nWe are running a limited-time offer on our subscription plans. Visit us today and save!\n\nSeats are limited — book yours now.\n\nThank you,\n${library?.library_name||"Library Team"}`,
+    custom:   "",
+  };
+
+  useEffect(() => {
+    if (emailTemplate !== "custom") setEmailBody(emailTemplates[emailTemplate]);
+  }, [emailTemplate]);
+
+  // Email recipients = active students WITH email address
+  const emailRecipients = recipients.filter(st => st.email && st.email.trim() !== "");
+  const noEmailCount    = recipients.length - emailRecipients.length;
+
+  const authFetch = async (method, path, body) => {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  const sendEmailBlast = async () => {
+    if (!emailSubject.trim()) { setEmailResult({ error: "Please enter a subject line." }); return; }
+    if (!emailBody.trim())    { setEmailResult({ error: "Please write a message body." }); return; }
+    setEmailSending(true); setEmailResult(null);
+    try {
+      const res = await authFetch("POST", "/email-blast", {
+        subject: emailSubject,
+        body: emailBody,
+        recipientIds: emailRecipients.map(s=>s.id),
+      });
+      setEmailResult({ ok: true, sent: res.sent, failed: res.failed, total: res.total, failedList: res.failedList });
+    } catch(e) {
+      setEmailResult({ error: e.message || "Failed to send emails." });
+    } finally { setEmailSending(false); }
   };
 
   // ── Social Post state ──
@@ -1105,12 +1156,12 @@ function Marketing({ data, library }) {
   return (
     <div>
       <div className="page-header">
-        <div className="page-header-left"><h1>Marketing</h1><p>WhatsApp blasts & social media posts</p></div>
+        <div className="page-header-left"><h1>Marketing</h1><p>Email blasts, WhatsApp & social media posts</p></div>
       </div>
 
       {/* Main tabs */}
       <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)"}}>
-        {[["whatsapp","💬 WhatsApp Blast"],["social","📸 Social Media Post"]].map(([id,label])=>(
+        {[["whatsapp","💬 WhatsApp"],["email","📧 Email Blast"],["social","📸 Social Post"]].map(([id,label])=>(
           <button key={id} onClick={()=>setMainTab(id)} style={{
             padding:"10px 20px",background:mainTab===id?"var(--accent-dim)":"transparent",
             color:mainTab===id?"var(--accent2)":"var(--text3)",
@@ -1119,6 +1170,144 @@ function Marketing({ data, library }) {
           }}>{label}</button>
         ))}
       </div>
+
+      {/* ══ EMAIL BLAST TAB ══ */}
+      {mainTab==="email" && (
+        <div>
+          {/* Info banner */}
+          <div style={{background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.7}}>
+            <strong style={{color:"var(--accent)"}}>📧 Email Blast</strong> — Send a personalised email to all your students at once using your own Gmail account. It's completely free.<br/>
+            <span style={{color:"var(--text3)"}}>First time? Go to <strong>Settings → Email Setup</strong> to connect your Gmail. Takes 2 minutes.</span>
+          </div>
+
+          <div className="marketing-wa-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            {/* Filters (same as WhatsApp) */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:12}}><Icon name="users" size={13} color="var(--text3)"/>Filter Recipients</div>
+              <div className="form-group">
+                <label className="label">Subscription Status</label>
+                <div className="pill-tabs" style={{marginBottom:0}}>
+                  {[["active","Active"],["expiring","Expiring (≤7d)"],["inactive","No Sub"],["all","All Students"]].map(([v,l])=>(
+                    <div key={v} className={`pill${statusFilter===v?" active":""}`} onClick={()=>setStatusFilter(v)}>{l}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group" style={{marginTop:12}}>
+                <label className="label">Filter by Shift</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
+                  {(data.shifts||[]).map(sh=>(
+                    <div key={sh.id} onClick={()=>toggleShift(sh.id)}
+                      style={{padding:"6px 12px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:`1.5px solid ${selectedShifts.includes(sh.id)?"var(--accent)":"var(--border)"}`,background:selectedShifts.includes(sh.id)?"var(--accent-dim)":"var(--surface2)",color:selectedShifts.includes(sh.id)?"var(--accent)":"var(--text2)",transition:"all 0.15s"}}>
+                      {sh.name}
+                    </div>
+                  ))}
+                  {selectedShifts.length>0&&<div onClick={()=>setSelectedShifts([])} style={{padding:"6px 12px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid var(--border)",color:"var(--text3)"}}>Clear</div>}
+                </div>
+              </div>
+              <div style={{marginTop:14,padding:"10px 14px",background:"var(--accent-dim)",borderRadius:8,border:"1px solid var(--accent)"}}>
+                <span style={{fontSize:13,color:"var(--accent)",fontWeight:700}}>{emailRecipients.length} students with email</span>
+                {noEmailCount>0&&<span style={{fontSize:11.5,color:"var(--text3)",marginLeft:6}}>({noEmailCount} have no email saved)</span>}
+              </div>
+            </div>
+
+            {/* Email compose */}
+            <div className="card">
+              <div className="section-title" style={{marginBottom:12}}><Icon name="send" size={13} color="var(--text3)"/>Compose Email</div>
+              <div className="form-group">
+                <label className="label">Template</label>
+                <select className="input select" value={emailTemplate} onChange={e=>setEmailTemplate(e.target.value)}>
+                  <option value="custom">Custom message</option>
+                  <option value="renewal">Subscription renewal reminder</option>
+                  <option value="announce">General announcement</option>
+                  <option value="offer">Special offer</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="label">Subject *</label>
+                <input className="input" placeholder="e.g. Your subscription is expiring soon" value={emailSubject} onChange={e=>setEmailSubject(e.target.value)}/>
+              </div>
+              <div className="form-group">
+                <label className="label">Message * (use {"{name}"} for student name)</label>
+                <textarea className="input textarea" rows={6}
+                  placeholder={"Hi {name},\n\nWrite your message here...\n\nThank you,\n"+library?.library_name}
+                  value={emailBody} onChange={e=>setEmailBody(e.target.value)}
+                  style={{minHeight:120,resize:"vertical"}}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Send button + result */}
+          <div className="card" style={{padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+              <div>
+                <div style={{fontWeight:600,fontSize:13}}>{emailRecipients.length} emails will be sent</div>
+                {noEmailCount>0&&<div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>⚠️ {noEmailCount} students skipped (no email address in their profile)</div>}
+              </div>
+              <button className="btn btn-primary" onClick={sendEmailBlast}
+                disabled={emailSending || emailRecipients.length===0 || !emailSubject || !emailBody}
+                style={{gap:8,minWidth:180}}>
+                {emailSending ? <Spinner size={15}/> : <Icon name="send" size={15} color="white"/>}
+                {emailSending ? "Sending..." : `Send to ${emailRecipients.length} Students`}
+              </button>
+            </div>
+
+            {emailResult && (
+              <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,background: emailResult.ok?"var(--green-dim, #f0fdf4)":"var(--red-dim)",border:`1px solid ${emailResult.ok?"var(--green, #22c55e)":"var(--red)"}`}}>
+                {emailResult.ok ? (
+                  <div>
+                    <div style={{fontWeight:700,color:"var(--green, #16a34a)",fontSize:13}}>✅ Blast sent!</div>
+                    <div style={{fontSize:12.5,color:"var(--text2)",marginTop:4}}>
+                      {emailResult.sent} emails sent successfully{emailResult.failed>0?`, ${emailResult.failed} failed`:""}.
+                    </div>
+                    {emailResult.failedList?.length>0&&(
+                      <div style={{fontSize:11.5,color:"var(--text3)",marginTop:4}}>
+                        Failed: {emailResult.failedList.map(f=>f.email).join(", ")}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{fontWeight:700,color:"var(--red)",fontSize:13}}>❌ Error</div>
+                    <div style={{fontSize:12.5,color:"var(--text2)",marginTop:4}}>{emailResult.error}</div>
+                    {emailResult.error?.includes("not configured") && (
+                      <div style={{fontSize:12,marginTop:6}}>👉 Go to <strong>Settings → Email Setup</strong> to connect your Gmail.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Student list */}
+          {emailRecipients.length > 0 && (
+            <div className="card" style={{padding:0,marginTop:16}}>
+              <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)"}}>
+                <div className="section-title" style={{margin:0}}><Icon name="users" size={13} color="var(--text3)"/>Students with email ({emailRecipients.length})</div>
+              </div>
+              <div className="table-container">
+                <table className="table"><thead><tr><th>Student</th><th>Email</th><th>Shift</th><th>Expires</th></tr></thead>
+                <tbody>
+                  {emailRecipients.map(st=>(
+                    <tr key={st.id}>
+                      <td><div style={{fontWeight:600}}>{st.name}</div></td>
+                      <td className="text-sm">{st.email}</td>
+                      <td>{st.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{st.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td>
+                      <td className="text-sm">{st.end_date?formatDate(st.end_date):<span className="text-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            </div>
+          )}
+          {emailRecipients.length===0&&(
+            <div className="card"><div className="empty-state">
+              <div className="empty-icon"><Icon name="send" size={24} color="var(--text3)"/></div>
+              <div className="empty-title">No students with email addresses</div>
+              <div className="empty-sub">Add email addresses to your students' profiles to use email blast</div>
+            </div></div>
+          )}
+        </div>
+      )}
 
       {/* ══ SOCIAL MEDIA TAB ══ */}
       {mainTab==="social" && (
@@ -1410,7 +1599,7 @@ function Settings({ library, onUpdate }) {
     <div>
       <div className="page-header"><div className="page-header-left"><h1>Settings</h1></div></div>
       <div className="pill-tabs">
-        {[["profile","Profile"],["password","Password"],["notifications","Notifications"]].map(([v,l])=>(
+        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
         ))}
       </div>
@@ -1452,6 +1641,107 @@ function Settings({ library, onUpdate }) {
       {tab==="notifications"&&(
         <NotificationSettings/>
       )}
+
+      {tab==="email"&&(
+        <EmailSettings flash={flash} saving={saving} setSaving={setSaving}/>
+      )}
+    </div>
+  );
+}
+
+// ─── EMAIL SETTINGS COMPONENT ─────────────────────────────────────────────────
+function EmailSettings({ flash, saving, setSaving }) {
+  const [form, setForm] = useState({ smtpHost:"smtp.gmail.com", smtpPort:"587", smtpUser:"", smtpPass:"", fromName:"" });
+  const [loaded, setLoaded] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testMsg, setTestMsg] = useState("");
+
+  const authFetch = async (method, path, body) => {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  useEffect(() => {
+    authFetch("GET", "/email-settings").then(d => {
+      if (d) setForm(f => ({
+        ...f,
+        smtpHost: d.smtp_host || "smtp.gmail.com",
+        smtpPort: String(d.smtp_port || "587"),
+        smtpUser: d.smtp_user || "",
+        smtpPass: "",
+        fromName: d.from_name || "",
+      }));
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    if (!form.smtpUser || !form.smtpPass) { flash("Gmail address and App Password are required", true); return; }
+    setSaving(true);
+    try {
+      await authFetch("POST", "/email-settings", { smtpHost: form.smtpHost, smtpPort: parseInt(form.smtpPort)||587, smtpUser: form.smtpUser, smtpPass: form.smtpPass, fromName: form.fromName });
+      flash("Email settings saved!");
+    } catch(e) { flash(e.message||"Failed to save", true); }
+    finally { setSaving(false); }
+  };
+
+  const sendTest = async () => {
+    if (!form.smtpUser) { setTestMsg("Save your settings first."); return; }
+    setTesting(true); setTestMsg("");
+    try {
+      // Send test email to the library owner's own email
+      await authFetch("POST", "/email-blast", {
+        subject: "✅ Test Email from LibraryDesk",
+        body: "Hi,\n\nThis is a test email. Your Gmail SMTP setup is working correctly!\n\nYou can now send email blasts to your students from the Marketing page.\n\nLibraryDesk Team",
+        recipientIds: ["__self__"],  // backend ignores unknown IDs, sends 0 — we just test the connection
+      });
+      setTestMsg("✅ Test sent! Check your inbox.");
+    } catch(e) { setTestMsg("❌ " + (e.message||"Failed")); }
+    finally { setTesting(false); }
+  };
+
+  if (!loaded) return <div style={{padding:20}}><Spinner size={20}/></div>;
+
+  return (
+    <div className="card" style={{maxWidth:520}}>
+      <div className="section-title" style={{marginBottom:4}}><Icon name="send" size={13} color="var(--text3)"/>Email Setup (Gmail SMTP)</div>
+      <p style={{fontSize:12.5,color:"var(--text3)",marginBottom:16,lineHeight:1.6}}>
+        Connect your Gmail account so you can send email blasts to your students from the Marketing page.
+        This uses your own Gmail — <strong>free, no limits</strong> (up to 500 emails/day).
+      </p>
+
+      <div style={{background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.7}}>
+        <strong style={{color:"var(--accent)"}}>How to get Gmail App Password:</strong><br/>
+        1. Go to <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>Google Account → Security</a><br/>
+        2. Enable <strong>2-Step Verification</strong> (if not already)<br/>
+        3. Search for <strong>"App passwords"</strong> → Create one for "Mail"<br/>
+        4. Copy the 16-character password and paste below
+      </div>
+
+      <div className="form-group"><label className="label">Library Display Name (shown in emails)</label>
+        <input className="input" placeholder="e.g. Bright Future Library" value={form.fromName} onChange={e=>setForm(f=>({...f,fromName:e.target.value}))}/></div>
+      <div className="form-group"><label className="label">Gmail Address *</label>
+        <input className="input" type="email" placeholder="yourlibrary@gmail.com" value={form.smtpUser} onChange={e=>setForm(f=>({...f,smtpUser:e.target.value}))}/></div>
+      <div className="form-group"><label className="label">Gmail App Password * (16-char, no spaces)</label>
+        <div style={{position:"relative"}}>
+          <input className="input" type={showPass?"text":"password"} placeholder="xxxx xxxx xxxx xxxx" value={form.smtpPass} onChange={e=>setForm(f=>({...f,smtpPass:e.target.value.replace(/\s/g,"")}))} style={{paddingRight:42}}/>
+          <button className="btn btn-ghost btn-icon" onClick={()=>setShowPass(p=>!p)} style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}>
+            <Icon name={showPass?"eyeoff":"eye"} size={15} color="var(--text3)"/>
+          </button>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:10,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<Spinner size={15}/>:null}Save Settings</button>
+        <button className="btn btn-secondary" onClick={sendTest} disabled={testing}>{testing?<Spinner size={15}/>:null}Send Test Email to Myself</button>
+        {testMsg && <span style={{fontSize:12.5,color:testMsg.startsWith("✅")?"var(--green)":"var(--red)"}}>{testMsg}</span>}
+      </div>
     </div>
   );
 }
@@ -2615,6 +2905,120 @@ function Reports({ data }) {
   );
 }
 
+// ─── SPLASH SCREEN ───────────────────────────────────────────────────────────
+function SplashScreen() {
+  const [tip, setTip] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  const tips = [
+    "Loading your library data…",
+    "Waking up the server…",
+    "Almost there, hang tight…",
+    "Getting everything ready…",
+    "Just a few more seconds…",
+  ];
+
+  useEffect(() => {
+    // Cycle through tips every 2.5s
+    const tipTimer = setInterval(() => {
+      setTip(t => (t + 1) % tips.length);
+    }, 2500);
+
+    // Animate progress bar — fast at first, then slows down near 90%
+    let p = 0;
+    const progressTimer = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 90) { clearInterval(progressTimer); return prev; }
+        const increment = prev < 40 ? 4 : prev < 70 ? 2 : 0.5;
+        return Math.min(prev + increment, 90);
+      });
+    }, 120);
+
+    return () => { clearInterval(tipTimer); clearInterval(progressTimer); };
+  }, []);
+
+  return (
+    <>
+      <style>{styles}</style>
+      <div style={{
+        minHeight:"100vh", display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        background:"var(--bg)", padding:24,
+      }}>
+        {/* Logo */}
+        <div style={{animation:"splashFadeIn 0.6s ease both", animationDelay:"0s", textAlign:"center", marginBottom:40}}>
+          <div style={{
+            width:72, height:72, borderRadius:20,
+            background:"var(--accent-dim)", border:"1.5px solid var(--accent)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            margin:"0 auto 16px",
+            boxShadow:"0 0 32px var(--accent-glow)",
+            animation:"splashPulse 2.5s ease-in-out infinite",
+          }}>
+            <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+          </div>
+          <div style={{fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:700, color:"var(--accent)", letterSpacing:0.5}}>
+            LibraryDesk
+          </div>
+          <div style={{fontSize:12, color:"var(--text3)", letterSpacing:3, textTransform:"uppercase", marginTop:4}}>
+            Management System
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{animation:"splashFadeIn 0.6s ease both", animationDelay:"0.2s", width:"100%", maxWidth:280, marginBottom:20}}>
+          <div style={{
+            height:3, background:"var(--surface2)", borderRadius:99,
+            overflow:"hidden", border:"1px solid var(--border)",
+          }}>
+            <div style={{
+              height:"100%", borderRadius:99,
+              background:"linear-gradient(90deg, var(--accent), var(--accent2))",
+              width:`${progress}%`,
+              transition:"width 0.15s ease",
+              boxShadow:"0 0 8px var(--accent-glow)",
+            }}/>
+          </div>
+        </div>
+
+        {/* Tip text */}
+        <div style={{animation:"splashFadeIn 0.6s ease both", animationDelay:"0.3s", textAlign:"center"}}>
+          <div style={{
+            fontSize:13, color:"var(--text3)", minHeight:20,
+            transition:"opacity 0.4s ease",
+          }}>
+            {tips[tip]}
+          </div>
+
+          {/* Animated dots */}
+          <div style={{display:"flex", gap:6, justifyContent:"center", marginTop:16}}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width:6, height:6, borderRadius:"50%",
+                background:"var(--accent)",
+                animation:`splashDot 1.2s ease-in-out infinite`,
+                animationDelay:`${i * 0.2}s`,
+              }}/>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <div style={{
+          position:"fixed", bottom:24,
+          fontSize:11, color:"var(--text3)", textAlign:"center",
+          animation:"splashFadeIn 0.6s ease both", animationDelay:"0.6s",
+        }}>
+          Powered by LibraryDesk · First load may take ~30s
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [library, setLibrary]     = useState(null);
@@ -2739,14 +3143,7 @@ export default function App() {
   const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], attendance:["Attendance","& QR Check-in"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"] };
   const [t1,t2] = pageTitle[page] || ["",""];
 
-  if (checking) return (
-    <>
-      <style>{styles}</style>
-      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
-        <Spinner size={40}/>
-      </div>
-    </>
-  );
+  if (checking) return <SplashScreen />;
 
   if (!library) return (<><style>{styles}</style><AuthPage onAuth={handleAuth}/></>);
 

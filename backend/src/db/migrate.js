@@ -240,6 +240,21 @@ CREATE INDEX IF NOT EXISTS idx_saas_payments_lib  ON saas_payments(library_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_library    ON invoices(library_id);
 CREATE INDEX IF NOT EXISTS idx_coupons_code        ON coupons(code);
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- EMAIL SETTINGS (SMTP per library for email blast)
+-- ═══════════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS email_settings (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  library_id   UUID UNIQUE NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+  smtp_host    VARCHAR(255) NOT NULL DEFAULT 'smtp.gmail.com',
+  smtp_port    INTEGER      NOT NULL DEFAULT 587,
+  smtp_user    VARCHAR(255) NOT NULL,
+  smtp_pass    VARCHAR(255) NOT NULL,
+  from_name    VARCHAR(255),
+  created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_students_library    ON students(library_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_lib   ON subscriptions(library_id);
