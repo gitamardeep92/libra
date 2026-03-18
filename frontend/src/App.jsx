@@ -1354,9 +1354,7 @@ function Marketing({ data, library }) {
                     ["🏆 Success","🏆 Proud of our students and their dedication!"],
                   ].map(([label, text])=>(
                     <button key={label} className="btn btn-secondary btn-sm"
-                      onClick={()=>setCaption(c=>c+(c?"
-
-":"")+text)}>{label}</button>
+                      onClick={()=>setCaption(c=>c+(c?"\n\n":"")+text)}>{label}</button>
                   ))}
                 </div>
               </div>
