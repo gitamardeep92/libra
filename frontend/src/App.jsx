@@ -1024,6 +1024,11 @@ function Marketing({ data, library }) {
   const [customMsg, setCustomMsg]           = useState("");
   const [preview, setPreview]               = useState(null);
   const [waStep, setWaStep]                 = useState(null); // null = not started, number = current index
+  // WaBulk state
+  const [waTemplate, setWaTemplate]         = useState("Hi {{name}}, your {{plan}} subscription at {{library}} expires on {{date}}. Please renew to keep your seat. Thank you!");
+  const [waSending, setWaSending]           = useState(false);
+  const [waResult, setWaResult]             = useState(null);
+  const [waConfigured, setWaConfigured]     = useState(null); // null=loading, true/false
 
   const templates = {
     renewal:  (s) => `Hi ${s.name}, your library subscription expires on ${formatDate(s.end_date)}. Please renew to continue your access. Visit us soon! — ${library?.library_name}`,
@@ -1068,6 +1073,38 @@ function Marketing({ data, library }) {
     else setWaStep(null); // finished
   };
   const cancelWaBlast = () => setWaStep(null);
+
+  // WaBulk API blast
+  const waAuthFetch = async (method, path, body) => {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  // Check if WaBulk is configured on mount
+  useEffect(() => {
+    waAuthFetch("GET", "/whatsapp-settings").then(d => setWaConfigured(!!d)).catch(() => setWaConfigured(false));
+  }, []);
+
+  const sendWaBulkBlast = async () => {
+    if (!waTemplate.trim()) { setWaResult({ error: "Please write a message template." }); return; }
+    setWaSending(true); setWaResult(null);
+    try {
+      const res = await waAuthFetch("POST", "/whatsapp-blast", {
+        template: waTemplate,
+        recipientIds: recipients.map(s => s.id),
+        delayMs: 3000,
+      });
+      setWaResult({ ok: true, queued: res.queued, campaign_id: res.campaign_id, message: res.message });
+    } catch(e) {
+      setWaResult({ error: e.message || "Failed to send." });
+    } finally { setWaSending(false); }
+  };
 
   // ── Email Blast state ──
   const [emailSubject, setEmailSubject] = useState("");
@@ -1588,19 +1625,126 @@ function Marketing({ data, library }) {
         </div>
       </div>
 
-      {/* Recipient list + Start Blast button */}
+      {/* WaBulk Blast — primary action */}
+      {waConfigured === false && (
+        <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 16px",marginBottom:16,fontSize:13,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <Icon name="whatsapp" size={18} color="#25D366"/>
+          <div>
+            <div style={{fontWeight:600,color:"var(--text)"}}>Connect WhatsApp for automatic bulk sending</div>
+            <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Set up WaBulk once and send to all students with one click — free up to 500 messages/month</div>
+          </div>
+          <a href="#settings" onClick={e=>{e.preventDefault();document.querySelector('[data-page="settings"]')?.click();}}
+            className="btn btn-primary" style={{marginLeft:"auto",background:"#25D366",borderColor:"#25D366",color:"#000",gap:8,fontSize:12.5}}>
+            <Icon name="settings" size={13} color="#000"/>Set Up WhatsApp
+          </a>
+        </div>
+      )}
+
+      {/* WaBulk template + send */}
+      {waConfigured && (
+        <div className="card" style={{marginBottom:16}}>
+          <div className="section-title" style={{marginBottom:12}}>
+            <Icon name="whatsapp" size={13} color="#25D366"/>📤 Bulk Send via WaBulk
+            <span className="badge badge-green" style={{fontSize:10,marginLeft:8}}>API Connected</span>
+          </div>
+
+          <div className="form-group">
+            <label className="label">Message Template</label>
+            <div style={{fontSize:11.5,color:"var(--text3)",marginBottom:6}}>
+              Available variables: <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{name}}"}</code>{" "}
+              <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{plan}}"}</code>{" "}
+              <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{date}}"}</code>{" "}
+              <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{days}}"}</code>{" "}
+              <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{shift}}"}</code>{" "}
+              <code style={{background:"var(--surface3)",padding:"1px 5px",borderRadius:4}}>{"{{library}}"}</code>
+            </div>
+            <textarea className="input textarea" rows={4}
+              placeholder="Hi {{name}}, your {{plan}} at {{library}} expires on {{date}}. Please renew!"
+              value={waTemplate} onChange={e=>setWaTemplate(e.target.value)}
+              style={{minHeight:90,fontFamily:"monospace",fontSize:13}}/>
+            <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+              {[
+                ["Renewal Reminder","Hi {{name}}, your {{plan}} subscription at {{library}} expires on {{date}} ({{days}} days left). Please renew to keep your seat. Thank you!"],
+                ["Expiry Alert","⚠️ Dear {{name}}, your library subscription expires in {{days}} days on {{date}}. Visit {{library}} to renew. Don't lose your seat!"],
+                ["Payment Due","Hi {{name}}, this is a reminder about your pending payment at {{library}}. Please clear dues at your earliest. Thank you!"],
+              ].map(([label, tmpl]) => (
+                <button key={label} className="btn btn-secondary btn-sm" onClick={()=>setWaTemplate(tmpl)}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          {waTemplate && recipients.length > 0 && (
+            <div style={{marginTop:8,marginBottom:12}}>
+              <div className="text-xs text-muted" style={{marginBottom:4}}>Preview (first recipient):</div>
+              <div style={{background:"#075e54",borderRadius:8,padding:"10px 14px",fontSize:12.5,color:"#dcf8c6",lineHeight:1.6,fontStyle:"normal"}}>
+                {waTemplate
+                  .replace(/{{name}}/g, recipients[0]?.name || "Student")
+                  .replace(/{{plan}}/g, recipients[0]?.plan_name || "Gold")
+                  .replace(/{{library}}/g, library?.library_name || "Library")
+                  .replace(/{{date}}/g, recipients[0]?.end_date ? formatDate(recipients[0].end_date) : "30 Apr 2025")
+                  .replace(/{{days}}/g, recipients[0]?.end_date ? String(daysDiff(recipients[0].end_date)) : "7")
+                  .replace(/{{shift}}/g, recipients[0]?.shift_name || "Morning")
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Send button */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:13,color:"var(--text3)"}}>
+              <span style={{fontWeight:700,color:"var(--accent)"}}>{recipients.length} students</span> will receive this message with 3s delay between each
+            </div>
+            <button className="btn btn-primary" onClick={sendWaBulkBlast}
+              disabled={waSending || recipients.length===0 || !waTemplate.trim()}
+              style={{background:"#25D366",borderColor:"#25D366",color:"#000",gap:8,minWidth:200}}>
+              {waSending ? <Spinner size={15}/> : <Icon name="whatsapp" size={15} color="#000"/>}
+              {waSending ? "Sending via WaBulk…" : `Send to ${recipients.length} Students`}
+            </button>
+          </div>
+
+          {/* Result */}
+          {waResult && (
+            <div style={{marginTop:12,padding:"12px 14px",borderRadius:8,
+              background: waResult.ok ? "rgba(37,211,102,0.1)" : "var(--red-dim)",
+              border: `1px solid ${waResult.ok ? "#25D366" : "var(--red)"}`}}>
+              {waResult.ok ? (
+                <div>
+                  <div style={{fontWeight:700,color:"#25D366",fontSize:13}}>✅ {waResult.queued} messages queued!</div>
+                  <div style={{fontSize:12,color:"var(--text3)",marginTop:4}}>Campaign ID: <code>{waResult.campaign_id}</code></div>
+                  <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>WaBulk is sending with humanized delays. Messages will arrive in a few minutes.</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{fontWeight:700,color:"var(--red)",fontSize:13}}>❌ Error</div>
+                  <div style={{fontSize:12.5,color:"var(--text2)",marginTop:4}}>{waResult.error}</div>
+                  {waResult.error?.includes("not configured") && (
+                    <div style={{fontSize:12,marginTop:6}}>👉 Go to <strong>Settings → WhatsApp Setup</strong> to connect WaBulk.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recipient list */}
       {recipients.length>0&&(
         <div className="card" style={{padding:0}}>
           <div style={{padding:"14px 16px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
             <div>
               <div className="section-title" style={{margin:0}}><Icon name="users" size={13} color="var(--text3)"/>Recipients ({recipients.length})</div>
-              <div style={{fontSize:11.5,color:"var(--text3)",marginTop:3}}>You will send one by one — WhatsApp opens for each student</div>
+              <div style={{fontSize:11.5,color:"var(--text3)",marginTop:3}}>
+                {waConfigured ? "Will be sent via WaBulk API" : "Manual send — one by one"}
+              </div>
             </div>
-            <button className="btn btn-primary" onClick={startWaBlast}
-              disabled={!customMsg&&msgTemplate==="custom"}
-              style={{gap:8,background:"#25D366",borderColor:"#25D366"}}>
-              <Icon name="whatsapp" size={15} color="white"/>Start Blast ({recipients.length})
-            </button>
+            {!waConfigured && (
+              <button className="btn btn-primary" onClick={startWaBlast}
+                disabled={!customMsg&&msgTemplate==="custom"}
+                style={{gap:8,background:"#25D366",borderColor:"#25D366",color:"#000"}}>
+                <Icon name="whatsapp" size={15} color="#000"/>Manual Blast ({recipients.length})
+              </button>
+            )}
           </div>
           <div className="table-container">
             <table className="table"><thead><tr><th>#</th><th>Student</th><th>Phone</th><th>Shift</th><th>Expires</th><th></th></tr></thead>
@@ -1613,8 +1757,7 @@ function Marketing({ data, library }) {
                   <td>{st.shift_name?<span className="badge badge-purple" style={{fontSize:11}}>{st.shift_name}</span>:<span className="text-muted text-xs">—</span>}</td>
                   <td className="text-sm">{st.end_date?formatDate(st.end_date):<span className="text-muted">—</span>}</td>
                   <td>
-                    <button className="btn btn-ghost btn-icon" title="Send now"
-                      disabled={!customMsg&&msgTemplate==="custom"}
+                    <button className="btn btn-ghost btn-icon" title="Send individually"
                       onClick={()=>openWhatsApp(st.phone, getMessage(st))} style={{color:"#25D366"}}>
                       <Icon name="whatsapp" size={14} color="#25D366"/>
                     </button>
@@ -1697,7 +1840,7 @@ function Settings({ library, onUpdate }) {
     <div>
       <div className="page-header"><div className="page-header-left"><h1>Settings</h1></div></div>
       <div className="pill-tabs">
-        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["notifications","Notifications"]].map(([v,l])=>(
+        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
         ))}
       </div>
@@ -1743,6 +1886,104 @@ function Settings({ library, onUpdate }) {
       {tab==="email"&&(
         <EmailSettings flash={flash} saving={saving} setSaving={setSaving}/>
       )}
+
+      {tab==="whatsapp"&&(
+        <WhatsAppSettings flash={flash} saving={saving} setSaving={setSaving}/>
+      )}
+    </div>
+  );
+}
+
+// ─── WHATSAPP SETTINGS COMPONENT (WaBulk) ────────────────────────────────────
+function WhatsAppSettings({ flash, saving, setSaving }) {
+  const [form, setForm] = useState({ apiKey:"", sessionId:"" });
+  const [loaded, setLoaded] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+
+  const authFetch = async (method, path, body) => {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  useEffect(() => {
+    authFetch("GET", "/whatsapp-settings").then(d => {
+      if (d) setForm(f => ({ ...f, sessionId: d.session_id || "" }));
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    if (!form.apiKey || !form.sessionId) { flash("Both API Key and Session ID are required", true); return; }
+    setSaving(true);
+    try {
+      await authFetch("POST", "/whatsapp-settings", { apiKey: form.apiKey, sessionId: form.sessionId });
+      flash("WhatsApp settings saved! ✅");
+      setForm(f => ({ ...f, apiKey: "" })); // clear key from UI after save
+    } catch(e) { flash(e.message || "Failed to save", true); }
+    finally { setSaving(false); }
+  };
+
+  if (!loaded) return <div style={{padding:20}}><Spinner size={20}/></div>;
+
+  return (
+    <div className="card" style={{maxWidth:520}}>
+      <div className="section-title" style={{marginBottom:4}}>
+        <Icon name="whatsapp" size={13} color="#25D366"/>WhatsApp Setup (WaBulk)
+      </div>
+      <p style={{fontSize:12.5,color:"var(--text3)",marginBottom:16,lineHeight:1.6}}>
+        Connect your WhatsApp via <strong>WaBulk</strong> to send bulk messages directly from this app.
+        Free plan includes <strong>500 messages/month</strong>.
+      </p>
+
+      {/* How to get credentials */}
+      <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.9}}>
+        <strong style={{color:"var(--text)"}}>How to get your API Key & Session ID:</strong><br/>
+        <span style={{color:"var(--accent)",fontWeight:600}}>1.</span> Go to{" "}
+        <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>wabulk-api.onrender.com</a> → Sign up free<br/>
+        <span style={{color:"var(--accent)",fontWeight:600}}>2.</span> Connect your WhatsApp number by scanning the QR code<br/>
+        <span style={{color:"var(--accent)",fontWeight:600}}>3.</span> Copy your <strong>API Key</strong> and <strong>Session ID</strong> from the dashboard<br/>
+        <span style={{color:"var(--accent)",fontWeight:600}}>4.</span> Paste them below and save
+      </div>
+
+      <div className="form-group">
+        <label className="label">WaBulk API Key *</label>
+        <div style={{position:"relative"}}>
+          <input className="input" type={showKey?"text":"password"}
+            placeholder="wabk_live_xxxxxxxxxxxxxxxx"
+            value={form.apiKey} onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}
+            style={{paddingRight:42}}/>
+          <button className="btn btn-ghost btn-icon" onClick={()=>setShowKey(p=>!p)}
+            style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}>
+            <Icon name={showKey?"eyeoff":"eye"} size={15} color="var(--text3)"/>
+          </button>
+        </div>
+        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Your API key is stored securely and never shown again after saving.</div>
+      </div>
+
+      <div className="form-group">
+        <label className="label">Session ID *</label>
+        <input className="input" placeholder="your-wa-session-uuid"
+          value={form.sessionId} onChange={e=>setForm(f=>({...f,sessionId:e.target.value}))}/>
+        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Found in your WaBulk dashboard under your connected WhatsApp number.</div>
+      </div>
+
+      <div style={{display:"flex",gap:10,marginTop:8,alignItems:"center",flexWrap:"wrap"}}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}
+          style={{background:"#25D366",borderColor:"#25D366",color:"#000"}}>
+          {saving?<Spinner size={15}/>:<Icon name="whatsapp" size={14} color="#000"/>}
+          Save WhatsApp Settings
+        </button>
+        <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer"
+          className="btn btn-secondary" style={{fontSize:12.5}}>
+          Create WaBulk Account →
+        </a>
+      </div>
     </div>
   );
 }

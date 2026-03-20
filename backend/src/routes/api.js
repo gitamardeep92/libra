@@ -669,5 +669,169 @@ router.post('/email-blast', async (req, res) => {
   });
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHATSAPP SETTINGS (WaBulk)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Ensure whatsapp_settings table exists
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_settings (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        library_id   UUID UNIQUE NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+        api_key      VARCHAR(255) NOT NULL,
+        session_id   VARCHAR(255) NOT NULL,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch(e) { console.warn('[whatsapp_settings table]', e.message); }
+})();
+
+// GET /api/whatsapp-settings — fetch current settings (api_key masked)
+router.get('/whatsapp-settings', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT session_id,
+              CASE WHEN api_key IS NOT NULL AND api_key != '' THEN '••••••••' ELSE '' END as api_key_hint
+       FROM whatsapp_settings WHERE library_id=$1`,
+      [libId(req)]
+    );
+    res.json(r.rows[0] || null);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/whatsapp-settings — upsert WaBulk credentials
+router.post('/whatsapp-settings', async (req, res) => {
+  const { apiKey, sessionId } = req.body;
+  if (!apiKey || !sessionId) return res.status(400).json({ error: 'apiKey and sessionId are required' });
+  try {
+    await pool.query(`
+      INSERT INTO whatsapp_settings (library_id, api_key, session_id)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (library_id) DO UPDATE SET
+        api_key    = EXCLUDED.api_key,
+        session_id = EXCLUDED.session_id,
+        updated_at = NOW()
+    `, [libId(req), apiKey, sessionId]);
+    res.json({ ok: true });
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHATSAPP BLAST (WaBulk API)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/whatsapp-blast
+router.post('/whatsapp-blast', async (req, res) => {
+  const { template, recipientIds, delayMs } = req.body;
+  if (!template) return res.status(400).json({ error: 'template is required' });
+
+  // 1. Load WaBulk credentials for this library
+  const cfgRes = await pool.query(
+    `SELECT api_key, session_id FROM whatsapp_settings WHERE library_id=$1`,
+    [libId(req)]
+  );
+  if (!cfgRes.rows.length) {
+    return res.status(400).json({ error: 'WhatsApp not configured. Please set up WaBulk in Settings → WhatsApp Setup.' });
+  }
+  const { api_key, session_id } = cfgRes.rows[0];
+
+  // 2. Fetch recipients with active subscriptions
+  let studentsRes;
+  if (recipientIds && recipientIds.length > 0) {
+    studentsRes = await pool.query(
+      `SELECT s.id, s.name, s.phone,
+              sub.plan_name, sub.end_date, sub.shift_id,
+              sh.name as shift_name
+       FROM students s
+       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+       LEFT JOIN shifts sh ON sh.id=sub.shift_id
+       WHERE s.id=ANY($2) AND s.library_id=$1 AND s.status='active'`,
+      [libId(req), recipientIds]
+    );
+  } else {
+    studentsRes = await pool.query(
+      `SELECT s.id, s.name, s.phone,
+              sub.plan_name, sub.end_date, sub.shift_id,
+              sh.name as shift_name
+       FROM students s
+       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+       LEFT JOIN shifts sh ON sh.id=sub.shift_id
+       WHERE s.library_id=$1 AND s.status='active' AND s.phone IS NOT NULL AND s.phone != ''`,
+      [libId(req)]
+    );
+  }
+
+  const students = studentsRes.rows;
+  if (!students.length) {
+    return res.status(400).json({ error: 'No students with phone numbers found.' });
+  }
+
+  // 3. Get library name for template variables
+  const libRes = await pool.query(`SELECT library_name FROM libraries WHERE id=$1`, [libId(req)]);
+  const libraryName = libRes.rows[0]?.library_name || 'Library';
+
+  // 4. Build messages array for WaBulk
+  const messages = students.map(s => {
+    // Normalize phone — ensure it starts with country code
+    const phone = s.phone.replace(/\D/g, '');
+    const to = phone.startsWith('91') ? `+${phone}` : `+91${phone}`;
+
+    // Build vars from student data
+    const endDate = s.end_date ? new Date(s.end_date).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : 'N/A';
+    const daysLeft = s.end_date ? Math.ceil((new Date(s.end_date) - new Date()) / 86400000) : null;
+
+    return {
+      to,
+      vars: {
+        name:     s.name,
+        library:  libraryName,
+        plan:     s.plan_name || 'N/A',
+        date:     endDate,
+        shift:    s.shift_name || 'N/A',
+        days:     daysLeft !== null ? String(daysLeft) : 'N/A',
+      }
+    };
+  });
+
+  // 5. Call WaBulk API
+  try {
+    const response = await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${api_key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_id,
+        template,
+        messages,
+        delay_ms: delayMs || 3000,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return res.status(400).json({ error: result.message || result.error || 'WaBulk API error' });
+    }
+
+    res.json({
+      ok: true,
+      campaign_id: result.campaign_id,
+      queued: result.queued,
+      message: result.message,
+      total: students.length,
+    });
+
+  } catch(err) {
+    res.status(500).json({ error: 'Failed to reach WaBulk API: ' + err.message });
+  }
+});
+
+
 module.exports = router;
 
