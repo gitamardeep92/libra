@@ -1960,9 +1960,11 @@ function Settings({ library, onUpdate, setupStatus }) {
 
 // ─── WHATSAPP SETTINGS COMPONENT (WaBulk) ────────────────────────────────────
 function WhatsAppSettings({ flash, saving, setSaving }) {
-  const [form, setForm] = useState({ apiKey:"", sessionId:"" });
-  const [loaded, setLoaded] = useState(false);
-  const [showKey, setShowKey] = useState(false);
+  const [form, setForm]         = useState({ apiKey:"", sessionId:"" });
+  const [loaded, setLoaded]     = useState(false);
+  const [showKey, setShowKey]   = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false); // true = already set up
+  const [editMode, setEditMode] = useState(false); // true = editing existing config
 
   const authFetch = async (method, path, body) => {
     const res = await fetch(`${API_BASE}/api${path}`, {
@@ -1975,18 +1977,16 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
     return data;
   };
 
-  const [reminders, setReminders] = useState(true);
+  const [reminders, setReminders]             = useState(true);
   const [togglingReminders, setTogglingReminders] = useState(false);
 
   useEffect(() => {
     authFetch("GET", "/whatsapp-settings").then(d => {
-      if (d) {
-        setForm(f => ({ ...f, sessionId: d.session_id || "" }));
+      if (d && (d.configured === true || d.api_key_hint)) {
+        // Already configured — mask both fields
+        setIsConfigured(true);
+        setForm({ apiKey: "••••••••••••••••", sessionId: "••••••" + (d.session_id || "").slice(-6) });
         setReminders(d.reminders_enabled !== false);
-        // If already configured, show that api key is saved
-        if (d.configured || d.api_key_hint) {
-          setForm(f => ({ ...f, apiKey: "" })); // clear so user knows it's saved
-        }
       }
       setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -2002,18 +2002,37 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
     finally { setTogglingReminders(false); }
   };
 
+  const startEdit = () => {
+    setEditMode(true);
+    setForm({ apiKey: "", sessionId: "" }); // clear masked values for editing
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    // Restore masked display
+    authFetch("GET", "/whatsapp-settings").then(d => {
+      if (d) setForm({ apiKey: "••••••••••••••••", sessionId: "••••••" + (d.session_id || "").slice(-6) });
+    }).catch(()=>{});
+  };
+
   const save = async () => {
     if (!form.apiKey || !form.sessionId) { flash("Both API Key and Session ID are required", true); return; }
+    if (form.apiKey.startsWith("•") || form.sessionId.startsWith("•")) { flash("Please enter new credentials to update", true); return; }
     setSaving(true);
     try {
       await authFetch("POST", "/whatsapp-settings", { apiKey: form.apiKey, sessionId: form.sessionId });
       flash("WhatsApp settings saved! ✅");
-      setForm(f => ({ ...f, apiKey: "" })); // clear key from UI after save
+      setIsConfigured(true);
+      setEditMode(false);
+      // Mask the saved values
+      setForm({ apiKey: "••••••••••••••••", sessionId: "••••••" + form.sessionId.slice(-6) });
     } catch(e) { flash(e.message || "Failed to save", true); }
     finally { setSaving(false); }
   };
 
   if (!loaded) return <div style={{padding:20}}><Spinner size={20}/></div>;
+
+  const showForm = !isConfigured || editMode;
 
   return (
     <div className="card" style={{maxWidth:520}}>
@@ -2025,48 +2044,84 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
         Free plan includes <strong>500 messages/month</strong>.
       </p>
 
-      {/* How to get credentials */}
-      <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.9}}>
-        <strong style={{color:"var(--text)"}}>How to get your API Key & Session ID:</strong><br/>
-        <span style={{color:"var(--accent)",fontWeight:600}}>1.</span> Go to{" "}
-        <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>wabulk-api.onrender.com</a> → Sign up free<br/>
-        <span style={{color:"var(--accent)",fontWeight:600}}>2.</span> Connect your WhatsApp number by scanning the QR code<br/>
-        <span style={{color:"var(--accent)",fontWeight:600}}>3.</span> Copy your <strong>API Key</strong> and <strong>Session ID</strong> from the dashboard<br/>
-        <span style={{color:"var(--accent)",fontWeight:600}}>4.</span> Paste them below and save
-      </div>
+      {/* Connected status banner */}
+      {isConfigured && !editMode && (
+        <div style={{background:"var(--green-dim)",border:"1px solid var(--green)",borderRadius:8,padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:18}}>✅</span>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:13,color:"var(--green)"}}>WaBulk Connected</div>
+            <div style={{fontSize:12,color:"var(--text3)"}}>Your WhatsApp is connected and ready to send messages.</div>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={startEdit}>
+            <Icon name="edit" size={13}/>Edit
+          </button>
+        </div>
+      )}
 
+      {/* How to get credentials — only show when not configured or editing */}
+      {showForm && (
+        <div style={{background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:16,fontSize:12.5,lineHeight:1.9}}>
+          <strong style={{color:"var(--text)"}}>How to get your API Key & Session ID:</strong><br/>
+          <span style={{color:"var(--accent)",fontWeight:600}}>1.</span> Go to{" "}
+          <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>wabulk-api.onrender.com</a> → Sign up free<br/>
+          <span style={{color:"var(--accent)",fontWeight:600}}>2.</span> Connect your WhatsApp number by scanning the QR code<br/>
+          <span style={{color:"var(--accent)",fontWeight:600}}>3.</span> Copy your <strong>API Key</strong> and <strong>Session ID</strong> from the dashboard<br/>
+          <span style={{color:"var(--accent)",fontWeight:600}}>4.</span> Paste them below and save
+        </div>
+      )}
+
+      {/* Fields — masked when configured and not editing */}
       <div className="form-group">
         <label className="label">WaBulk API Key *</label>
         <div style={{position:"relative"}}>
-          <input className="input" type={showKey?"text":"password"}
+          <input className="input"
+            type={showKey ? "text" : "password"}
             placeholder="wabk_live_xxxxxxxxxxxxxxxx"
-            value={form.apiKey} onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}
-            style={{paddingRight:42}}/>
+            value={form.apiKey}
+            onChange={e=>setForm(f=>({...f,apiKey:e.target.value}))}
+            disabled={isConfigured && !editMode}
+            style={{paddingRight:42, opacity: isConfigured && !editMode ? 0.6 : 1}}/>
           <button className="btn btn-ghost btn-icon" onClick={()=>setShowKey(p=>!p)}
             style={{position:"absolute",right:3,top:"50%",transform:"translateY(-50%)"}}>
             <Icon name={showKey?"eyeoff":"eye"} size={15} color="var(--text3)"/>
           </button>
         </div>
-        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Your API key is stored securely and never shown again after saving.</div>
+        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>
+          {isConfigured && !editMode ? "API key is saved securely — click Edit to update." : "Your API key is stored securely and never shown again after saving."}
+        </div>
       </div>
 
       <div className="form-group">
         <label className="label">Session ID *</label>
-        <input className="input" placeholder="your-wa-session-uuid"
-          value={form.sessionId} onChange={e=>setForm(f=>({...f,sessionId:e.target.value}))}/>
-        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Found in your WaBulk dashboard under your connected WhatsApp number.</div>
+        <input className="input"
+          type="password"
+          placeholder="your-wa-session-uuid"
+          value={form.sessionId}
+          onChange={e=>setForm(f=>({...f,sessionId:e.target.value}))}
+          disabled={isConfigured && !editMode}
+          style={{opacity: isConfigured && !editMode ? 0.6 : 1}}/>
+        <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>
+          {isConfigured && !editMode ? "Session ID is saved — click Edit to update." : "Found in your WaBulk dashboard under your connected WhatsApp number."}
+        </div>
       </div>
 
       <div style={{display:"flex",gap:10,marginTop:8,alignItems:"center",flexWrap:"wrap"}}>
-        <button className="btn btn-primary" onClick={save} disabled={saving}
-          style={{background:"#25D366",borderColor:"#25D366",color:"#000"}}>
-          {saving?<Spinner size={15}/>:<Icon name="whatsapp" size={14} color="#000"/>}
-          Save WhatsApp Settings
-        </button>
-        <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer"
-          className="btn btn-secondary" style={{fontSize:12.5}}>
-          Create WaBulk Account →
-        </a>
+        {(!isConfigured || editMode) && (
+          <button className="btn btn-primary" onClick={save} disabled={saving}
+            style={{background:"#25D366",borderColor:"#25D366",color:"#000"}}>
+            {saving?<Spinner size={15}/>:<Icon name="whatsapp" size={14} color="#000"/>}
+            {editMode ? "Update Settings" : "Save WhatsApp Settings"}
+          </button>
+        )}
+        {editMode && (
+          <button className="btn btn-secondary" onClick={cancelEdit}>Cancel</button>
+        )}
+        {!isConfigured && (
+          <a href="https://wabulk-api.onrender.com/app/signup" target="_blank" rel="noreferrer"
+            className="btn btn-secondary" style={{fontSize:12.5}}>
+            Create WaBulk Account →
+          </a>
+        )}
       </div>
 
       {/* Attendance Reminders Toggle */}
@@ -3603,7 +3658,11 @@ export default function App() {
     if (!library) return;
     // Check WaBulk setup
     fetch(`${API_BASE}/api/whatsapp-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
-      .then(r=>r.json()).then(d=>{ if(d?.configured === true || d?.session_id) setSetupStatus(p=>({...p, waConfigured:true})); }).catch(()=>{});
+      .then(r=>r.json()).then(d=>{ 
+        if(d && (d.configured === true || d.api_key_hint === '••••••••')) {
+          setSetupStatus(p=>({...p, waConfigured:true}));
+        }
+      }).catch(()=>{});
     // Check Email setup
     fetch(`${API_BASE}/api/email-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
       .then(r=>r.json()).then(d=>{ if(d?.smtp_user) setSetupStatus(p=>({...p, emailConfigured:true})); }).catch(()=>{});
