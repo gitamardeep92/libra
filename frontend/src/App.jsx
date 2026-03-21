@@ -839,8 +839,7 @@ function Attendance({ library }) {
       {/* ── TODAY ── */}
       {tab==="today" && (
         <div>
-          <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{display:"flex",gap:12,flex:1}}>
+          <div style={{display:"flex",gap:12,marginBottom:16}}>
             <div className="stat-card green" style={{flex:1}}>
               <div className="stat-label">Currently In</div>
               <div className="stat-value">{today.filter(a=>!a.check_out).length}</div>
@@ -853,25 +852,6 @@ function Attendance({ library }) {
               <div className="stat-label">Checked Out</div>
               <div className="stat-value">{today.filter(a=>a.check_out).length}</div>
             </div>
-          </div>
-            </div>
-            {today.some((a,i,arr)=>arr.findIndex(b=>b.student_phone===a.student_phone)!==i) && (
-              <button className="btn btn-secondary btn-sm" style={{color:"var(--red)",borderColor:"var(--red)",fontSize:12}}
-                onClick={async()=>{
-                  try {
-                    const token = getToken();
-                    const r = await fetch(`${API_BASE}/api/attendance/duplicates`, {
-                      method:"DELETE",
-                      headers:{"Authorization":`Bearer ${token}`}
-                    });
-                    const d = await r.json();
-                    alert(d.message || "Duplicates removed");
-                    load();
-                  } catch(e) { alert("Error: " + e.message); }
-                }}>
-                🧹 Remove Duplicate Records
-              </button>
-            )}
           </div>
           {loadError && <div className="alert alert-error" style={{marginBottom:12}}><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>{loadError}</span></div>}
           {loading ? <div style={{textAlign:"center",padding:40}}><Spinner size={28}/></div> :
