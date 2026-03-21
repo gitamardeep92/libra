@@ -77,15 +77,17 @@ router.post('/attendance/checkin', async (req, res) => {
     `).catch(()=>{});
 
     // Find student by phone — simple match on last 10 digits
+    // Use DISTINCT ON to avoid duplicate rows when student has multiple active subscriptions (e.g. after renewal)
     const normalizedForQuery = normalizedPhone;
     const st = await pool.query(
-      `SELECT s.id, s.name, s.phone,
+      `SELECT DISTINCT ON (s.id) s.id, s.name, s.phone,
               sub.end_date, sub.plan_name, sub.shift_id,
               sh.name as shift_name
        FROM students s
        LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1 AND sub.status='active' AND sub.end_date>=CURRENT_DATE
        LEFT JOIN shifts sh ON sh.id=sub.shift_id
-       WHERE RIGHT(REGEXP_REPLACE(s.phone,'[^0-9]','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'`,
+       WHERE RIGHT(REGEXP_REPLACE(s.phone,'[^0-9]','','g'),10)=$2 AND s.library_id=$1 AND s.status='active'
+       ORDER BY s.id, sub.end_date DESC NULLS LAST`,
       [libraryId, normalizedForQuery]
     );
     if (!st.rows.length) return res.status(404).json({ error: 'Student not found or inactive' });
