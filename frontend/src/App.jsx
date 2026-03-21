@@ -1028,7 +1028,7 @@ function Marketing({ data, library, waConfigured, emailConfigured, onNavigate })
   const [waTemplate, setWaTemplate]         = useState("Hi {{name}}, your {{plan}} subscription at {{library}} expires on {{date}}. Please renew to keep your seat. Thank you!");
   const [waSending, setWaSending]           = useState(false);
   const [waResult, setWaResult]             = useState(null);
-  const [waConfigured, setWaConfigured]     = useState(null); // null=loading, true/false
+  // waConfigured is passed as a prop from parent — no need to re-declare
 
   const templates = {
     renewal:  (s) => `Hi ${s.name}, your library subscription expires on ${formatDate(s.end_date)}. Please renew to continue your access. Visit us soon! — ${library?.library_name}`,
@@ -2108,42 +2108,32 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             <div>
               <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📥 Check-in reminder (30 min before shift):</div>
-              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.7}}>
-                Rise and shine, Rahul! 🌟{"
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9,whiteSpace:"pre-line"}}>
+                {"Rise and shine, Rahul! 🌟
 
-"}
-                Your Morning session at Bright Future Library begins at 08:00. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨{"
+Your Morning session at Bright Future Library begins at 08:00. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨
 
-"}
-                We're excited to see you. Let's make today incredibly productive! 💪📚{"
+We're excited to see you. Let's make today incredibly productive! 💪📚
 
-"}
-                👇 <em>Tap below to check in when you arrive:</em>{"
-"}
-                https://libra-backend-gjgo.onrender.com/checkin/...{"
+👇 Tap below to check in when you arrive:
+https://libra-backend.onrender.com/checkin/...
 
-"}
-                You've got this! 🏛️
+You've got this! 🏛️"}
               </div>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📤 Check-out reminder (15 min before shift ends):</div>
-              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.7}}>
-                Amazing work today, Rahul! 🎉{"
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9,whiteSpace:"pre-line"}}>
+                {"Amazing work today, Rahul! 🎉
 
-"}
-                Your Morning session at Bright Future Library wraps up at 15:00. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆{"
+Your Morning session at Bright Future Library wraps up at 15:00. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆
 
-"}
-                Please don't forget to check out before you leave — it only takes a second! 📖⭐{"
+Please don't forget to check out before you leave — it only takes a second! 📖⭐
 
-"}
-                👇 <em>Tap below to check out:</em>{"
-"}
-                https://libra-backend-gjgo.onrender.com/checkin/...{"
+👇 Tap below to check out:
+https://libra-backend.onrender.com/checkin/...
 
-"}
-                You're one step closer to your goals today! 🚀 See you tomorrow!
+You're one step closer to your goals today! 🚀 See you tomorrow!"}
               </div>
             </div>
           </div>
