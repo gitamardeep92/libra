@@ -1087,8 +1087,12 @@ function Marketing({ data, library, waConfigured, emailConfigured, onNavigate })
   };
 
   // Check if WaBulk is configured on mount
+  // waConfigured is passed as prop — but we also do a fresh check for accuracy
   useEffect(() => {
-    waAuthFetch("GET", "/whatsapp-settings").then(d => setWaConfigured(!!d)).catch(() => setWaConfigured(false));
+    waAuthFetch("GET", "/whatsapp-settings").then(d => {
+      // Only set configured if session_id exists (not just any response)
+      if (typeof setWaConfigured === 'function') setWaConfigured(!!(d?.session_id));
+    }).catch(() => {});
   }, []);
 
   const sendWaBulkBlast = async () => {
@@ -1813,7 +1817,7 @@ function Marketing({ data, library, waConfigured, emailConfigured, onNavigate })
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function Settings({ library, onUpdate }) {
+function Settings({ library, onUpdate, setupStatus }) {
   const [tab, setTab]           = useState("profile");
   const [saving, setSaving]     = useState(false);
   const [success, setSuccess]   = useState("");
@@ -1879,9 +1883,9 @@ function Settings({ library, onUpdate }) {
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {[
               { done: !!library?.owner_name && !!library?.library_name, label:"Complete your library profile", tab:"profile", desc:"Add your name, library name and city" },
-              { done: false, label:"Connect Gmail for Email Blast", tab:"email", desc:"Send free newsletters & reminders to students via email" },
-              { done: false, label:"Connect WaBulk for WhatsApp", tab:"whatsapp", desc:"Send bulk WhatsApp messages + automatic shift reminders" },
-              { done: true, label:"Enable Push Notifications", tab:"notifications", desc:"Get instant alerts when students check in" },
+              { done: !!setupStatus?.emailConfigured, label:"Connect Gmail for Email Blast", tab:"email", desc:"Send free newsletters & reminders to students via email" },
+              { done: !!setupStatus?.waConfigured, label:"Connect WaBulk for WhatsApp", tab:"whatsapp", desc:"Send bulk WhatsApp messages + automatic shift reminders" },
+              { done: typeof Notification !== 'undefined' && Notification.permission === 'granted', label:"Enable Push Notifications", tab:"notifications", desc:"Get instant alerts when students check in" },
             ].map((item, i) => (
               <div key={i} onClick={()=>setTab(item.tab)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,cursor:"pointer",background: item.done ? "var(--green-dim)" : "var(--surface3)",border:`1px solid ${item.done?"var(--green)":"var(--border)"}`,transition:"all 0.15s"}}>
@@ -1979,6 +1983,10 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
       if (d) {
         setForm(f => ({ ...f, sessionId: d.session_id || "" }));
         setReminders(d.reminders_enabled !== false);
+        // If already configured, show that api key is saved
+        if (d.configured || d.api_key_hint) {
+          setForm(f => ({ ...f, apiKey: "" })); // clear so user knows it's saved
+        }
       }
       setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -1987,7 +1995,7 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
   const toggleReminders = async (enabled) => {
     setTogglingReminders(true);
     try {
-      await authFetch("PATCH", "/whatsapp-settings/reminders", { enabled });
+      await authFetch("PATCH", "/whatsapp-reminders", { enabled });
       setReminders(enabled);
       flash(enabled ? "✅ Attendance reminders enabled!" : "Reminders turned off.");
     } catch(e) { flash(e.message || "Failed", true); }
@@ -3595,10 +3603,10 @@ export default function App() {
     if (!library) return;
     // Check WaBulk setup
     fetch(`${API_BASE}/api/whatsapp-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
-      .then(r=>r.json()).then(d=>{ if(d) setSetupStatus(p=>({...p, waConfigured:true})); }).catch(()=>{});
+      .then(r=>r.json()).then(d=>{ if(d?.configured === true || d?.session_id) setSetupStatus(p=>({...p, waConfigured:true})); }).catch(()=>{});
     // Check Email setup
     fetch(`${API_BASE}/api/email-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
-      .then(r=>r.json()).then(d=>{ if(d) setSetupStatus(p=>({...p, emailConfigured:true})); }).catch(()=>{});
+      .then(r=>r.json()).then(d=>{ if(d?.smtp_user) setSetupStatus(p=>({...p, emailConfigured:true})); }).catch(()=>{});
   }, [library]);
 
   const [updateAvailable, setUpdateAvailable] = useState(false);

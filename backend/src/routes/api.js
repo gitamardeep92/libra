@@ -722,8 +722,10 @@ router.post('/email-blast', async (req, res) => {
 // GET /api/whatsapp-settings — fetch current settings (api_key masked)
 router.get('/whatsapp-settings', async (req, res) => {
   try {
+    await pool.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE`).catch(()=>{});
     const r = await pool.query(
-      `SELECT session_id,
+      `SELECT session_id, reminders_enabled,
+              CASE WHEN api_key IS NOT NULL AND api_key != '' THEN true ELSE false END as configured,
               CASE WHEN api_key IS NOT NULL AND api_key != '' THEN '••••••••' ELSE '' END as api_key_hint
        FROM whatsapp_settings WHERE library_id=$1`,
       [libId(req)]
@@ -734,20 +736,41 @@ router.get('/whatsapp-settings', async (req, res) => {
 
 // POST /api/whatsapp-settings — upsert WaBulk credentials
 router.post('/whatsapp-settings', async (req, res) => {
-  const { apiKey, sessionId } = req.body;
+  const { apiKey, sessionId, remindersEnabled } = req.body;
   if (!apiKey || !sessionId) return res.status(400).json({ error: 'apiKey and sessionId are required' });
   try {
+    // Ensure reminders_enabled column exists
     await pool.query(`
-      INSERT INTO whatsapp_settings (library_id, api_key, session_id)
-      VALUES ($1, $2, $3)
+      ALTER TABLE whatsapp_settings
+      ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE
+    `).catch(()=>{});
+
+    await pool.query(`
+      INSERT INTO whatsapp_settings (library_id, api_key, session_id, reminders_enabled)
+      VALUES ($1, $2, $3, $4)
       ON CONFLICT (library_id) DO UPDATE SET
-        api_key    = EXCLUDED.api_key,
-        session_id = EXCLUDED.session_id,
-        updated_at = NOW()
-    `, [libId(req), apiKey, sessionId]);
+        api_key            = EXCLUDED.api_key,
+        session_id         = EXCLUDED.session_id,
+        reminders_enabled  = EXCLUDED.reminders_enabled,
+        updated_at         = NOW()
+    `, [libId(req), apiKey, sessionId, remindersEnabled !== false]);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
+
+// PATCH /api/whatsapp-reminders — toggle reminders on/off (also aliased as /whatsapp-settings/reminders)
+const toggleWaReminders = async (req, res) => {
+  const { enabled } = req.body;
+  try {
+    await pool.query(`
+      UPDATE whatsapp_settings SET reminders_enabled=$1, updated_at=NOW()
+      WHERE library_id=$2
+    `, [enabled, libId(req)]);
+    res.json({ ok: true, reminders_enabled: enabled });
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+};
+router.patch('/whatsapp-reminders', toggleWaReminders);
+router.patch('/whatsapp-settings/reminders', toggleWaReminders);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WHATSAPP BLAST (WaBulk API)
