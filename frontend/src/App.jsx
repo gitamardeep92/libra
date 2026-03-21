@@ -3833,7 +3833,7 @@ export default function App() {
             {page==="reports"&&<Reports data={data}/>}
             {page==="attendance"&&<Attendance library={library}/>}
             {page==="marketing"&&<Marketing data={data} library={library} waConfigured={setupStatus.waConfigured} emailConfigured={setupStatus.emailConfigured} onNavigate={navigate}/>}
-            {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
+            {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))} setupStatus={setupStatus}/>}
             {page==="billing"&&<Billing library={library}/>}
           </div>
         </main>
