@@ -725,8 +725,7 @@ router.get('/whatsapp-settings', async (req, res) => {
     await pool.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE`).catch(()=>{});
     const r = await pool.query(
       `SELECT session_id, reminders_enabled,
-              CASE WHEN api_key IS NOT NULL AND api_key != '' THEN true ELSE false END as configured,
-              CASE WHEN api_key IS NOT NULL AND api_key != '' THEN '••••••••' ELSE '' END as api_key_hint
+              (api_key IS NOT NULL AND api_key != '') as configured
        FROM whatsapp_settings WHERE library_id=$1`,
       [libId(req)]
     );
