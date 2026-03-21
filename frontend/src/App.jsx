@@ -3418,6 +3418,39 @@ export default function App() {
   };
   const [pwaPrompt, setPwaPrompt]     = useState(false);
 
+  // ── Auto-update: detect new service worker and prompt user ──
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(reg => {
+      // Check for updates every 60 seconds
+      const interval = setInterval(() => reg.update(), 60000);
+      // Listen for new sw waiting to activate
+      reg.addEventListener('updatefound', () => {
+        const newSw = reg.installing;
+        if (!newSw) return;
+        newSw.addEventListener('statechange', () => {
+          if (newSw.state === 'installed' && navigator.serviceWorker.controller) {
+            setUpdateAvailable(true);
+          }
+        });
+      });
+      return () => clearInterval(interval);
+    }).catch(() => {});
+  }, []);
+
+  const applyUpdate = () => {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.ready.then(reg => {
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    });
+  };
+
   // Show PWA install FAB
   const [pwaTooltip, setPwaTooltip] = useState(false);
   useEffect(()=>{
@@ -3521,6 +3554,29 @@ export default function App() {
               </div>
             </div>
           </div>
+          {/* ── Update available banner ── */}
+          {updateAvailable && (
+            <div style={{
+              background:"linear-gradient(90deg,var(--accent-dim),var(--surface2))",
+              border:"1px solid var(--accent)",
+              borderRadius:9, padding:"10px 16px", marginBottom:0,
+              display:"flex", alignItems:"center", gap:12,
+              position:"sticky", top:0, zIndex:50,
+            }}>
+              <span style={{fontSize:18}}>🆕</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:"var(--accent)"}}>New update available!</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>A new version of LibraryDesk is ready.</div>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={applyUpdate}
+                style={{background:"var(--accent)",borderColor:"var(--accent)",color:"#000",fontWeight:700}}>
+                Update Now
+              </button>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>setUpdateAvailable(false)}>
+                <Icon name="x" size={14}/>
+              </button>
+            </div>
+          )}
           <div className="content">
             {loading && page === "dashboard" && <div style={{position:"absolute",top:16,right:32}}><Spinner size={18}/></div>}
             {page!=="billing" && <TrialBanner library={library} onOpenBilling={()=>navigate("billing")}/>}
