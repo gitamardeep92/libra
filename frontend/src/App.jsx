@@ -2108,32 +2108,32 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             <div>
               <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📥 Check-in reminder (30 min before shift):</div>
-              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9,whiteSpace:"pre-line"}}>
-                {"Rise and shine, Rahul! 🌟
-
-Your Morning session at Bright Future Library begins at 08:00. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨
-
-We're excited to see you. Let's make today incredibly productive! 💪📚
-
-👇 Tap below to check in when you arrive:
-https://libra-backend.onrender.com/checkin/...
-
-You've got this! 🏛️"}
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9}}>
+                <div>Rise and shine, Rahul! 🌟</div>
+                <br/>
+                <div>Your Morning session at Bright Future Library begins at 08:00. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨</div>
+                <br/>
+                <div>We are excited to see you. Lets make today incredibly productive! 💪📚</div>
+                <br/>
+                <div>👇 Tap below to check in when you arrive:</div>
+                <div style={{opacity:0.8,fontSize:11}}>https://libra-backend.onrender.com/checkin/...</div>
+                <br/>
+                <div>You have got this! 🏛️</div>
               </div>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📤 Check-out reminder (15 min before shift ends):</div>
-              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9,whiteSpace:"pre-line"}}>
-                {"Amazing work today, Rahul! 🎉
-
-Your Morning session at Bright Future Library wraps up at 15:00. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆
-
-Please don't forget to check out before you leave — it only takes a second! 📖⭐
-
-👇 Tap below to check out:
-https://libra-backend.onrender.com/checkin/...
-
-You're one step closer to your goals today! 🚀 See you tomorrow!"}
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.9}}>
+                <div>Amazing work today, Rahul! 🎉</div>
+                <br/>
+                <div>Your Morning session at Bright Future Library wraps up at 15:00. You showed up, you focused, and you gave it your best — that is what sets true achievers apart! 🏆</div>
+                <br/>
+                <div>Please do not forget to check out before you leave — it only takes a second! 📖⭐</div>
+                <br/>
+                <div>👇 Tap below to check out:</div>
+                <div style={{opacity:0.8,fontSize:11}}>https://libra-backend.onrender.com/checkin/...</div>
+                <br/>
+                <div>You are one step closer to your goals today! 🚀 See you tomorrow!</div>
               </div>
             </div>
           </div>
