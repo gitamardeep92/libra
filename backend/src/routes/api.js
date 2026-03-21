@@ -461,16 +461,43 @@ router.get('/reports/summary', async (req, res) => {
 router.get('/attendance/today', async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT a.*, s.name as student_name, s.phone as student_phone,
+      SELECT DISTINCT ON (a.id) a.*, s.name as student_name, s.phone as student_phone,
              sh.name as shift_name
       FROM attendance a
       JOIN students s ON s.id=a.student_id
-      LEFT JOIN subscriptions sub ON sub.student_id=a.student_id AND sub.library_id=a.library_id AND sub.status='active'
+      LEFT JOIN LATERAL (
+        SELECT sub.shift_id FROM subscriptions sub
+        WHERE sub.student_id=a.student_id AND sub.library_id=a.library_id
+          AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+        ORDER BY sub.end_date DESC LIMIT 1
+      ) sub ON true
       LEFT JOIN shifts sh ON sh.id=sub.shift_id
       WHERE a.library_id=$1 AND a.date=CURRENT_DATE
-      ORDER BY a.check_in DESC
+      ORDER BY a.id, a.check_in DESC
     `, [libId(req)]);
     res.json(r.rows);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PRIVATE: Clean up duplicate attendance records for today (run once)
+router.delete('/attendance/duplicates', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      DELETE FROM attendance
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY library_id, student_id, date
+                   ORDER BY check_in ASC
+                 ) as rn
+          FROM attendance
+          WHERE library_id=$1
+        ) t
+        WHERE t.rn > 1
+      )
+    `, [libId(req)]);
+    res.json({ deleted: result.rowCount, message: `Removed ${result.rowCount} duplicate attendance records` });
   } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
