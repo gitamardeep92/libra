@@ -1,6 +1,6 @@
 // LibraryDesk Service Worker v2.0
-const CACHE_NAME = 'librarydesk-v2';
-const STATIC_CACHE = 'librarydesk-static-v2';
+const CACHE_NAME = 'librarydesk-v3';
+const STATIC_CACHE = 'librarydesk-static-v3';
 const PRECACHE_ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -12,10 +12,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const {request} = e; const url = new URL(request.url);
   if (request.method!=='GET'||url.protocol==='chrome-extension:') return;
-  if (url.pathname.startsWith('/api/')) {
-    e.respondWith(fetch(request).then(r=>{if(r.ok){const c=r.clone();caches.open(CACHE_NAME).then(ca=>ca.put(request,c));}return r;}).catch(()=>caches.match(request)));
-    return;
-  }
+  // Skip cross-origin requests (API on different domain) and chrome-extension
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return; // never cache API calls
   if (request.mode==='navigate') { e.respondWith(caches.match('/index.html').then(c=>c||fetch(request))); return; }
   e.respondWith(caches.match(request).then(c=>c||fetch(request).then(r=>{if(r.ok){const cl=r.clone();caches.open(CACHE_NAME).then(ca=>ca.put(request,cl));}return r;})));
 });
