@@ -1086,14 +1086,7 @@ function Marketing({ data, library, waConfigured, emailConfigured, onNavigate })
     return data;
   };
 
-  // Check if WaBulk is configured on mount
-  // waConfigured is passed as prop — but we also do a fresh check for accuracy
-  useEffect(() => {
-    waAuthFetch("GET", "/whatsapp-settings").then(d => {
-      // Only set configured if session_id exists (not just any response)
-      if (typeof setWaConfigured === 'function') setWaConfigured(!!(d?.session_id));
-    }).catch(() => {});
-  }, []);
+  // waConfigured is passed as prop from parent — no local fetch needed
 
   const sendWaBulkBlast = async () => {
     if (!waTemplate.trim()) { setWaResult({ error: "Please write a message template." }); return; }
