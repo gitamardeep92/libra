@@ -758,8 +758,8 @@ router.post('/whatsapp-settings', async (req, res) => {
   } catch(err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// PATCH /api/whatsapp-reminders — toggle reminders on/off (also aliased as /whatsapp-settings/reminders)
-const toggleWaReminders = async (req, res) => {
+// PATCH /api/whatsapp-settings/reminders — toggle reminders on/off without re-entering API key
+router.patch('/whatsapp-settings/reminders', async (req, res) => {
   const { enabled } = req.body;
   try {
     await pool.query(`
@@ -768,9 +768,7 @@ const toggleWaReminders = async (req, res) => {
     `, [enabled, libId(req)]);
     res.json({ ok: true, reminders_enabled: enabled });
   } catch(err) { res.status(500).json({ error: 'Server error' }); }
-};
-router.patch('/whatsapp-reminders', toggleWaReminders);
-router.patch('/whatsapp-settings/reminders', toggleWaReminders);
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WHATSAPP BLAST (WaBulk API)

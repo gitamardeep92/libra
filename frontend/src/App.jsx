@@ -1982,10 +1982,8 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
 
   useEffect(() => {
     authFetch("GET", "/whatsapp-settings").then(d => {
-      if (d && (d.configured === true || d.api_key_hint)) {
-        // Already configured — mask both fields
+      if (d && d.configured === true) {
         setIsConfigured(true);
-        setForm({ apiKey: "••••••••••••••••", sessionId: "••••••" + (d.session_id || "").slice(-6) });
         setReminders(d.reminders_enabled !== false);
       }
       setLoaded(true);
@@ -3653,7 +3651,7 @@ export default function App() {
     // Check WaBulk setup
     fetch(`${API_BASE}/api/whatsapp-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
       .then(r=>r.json()).then(d=>{ 
-        if(d && (d.configured === true || (d.api_key_hint && d.api_key_hint.length > 0))) {
+        if(d && d.configured === true) {
           setSetupStatus(p=>({...p, waConfigured:true}));
         }
       }).catch(()=>{});
