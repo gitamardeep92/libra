@@ -219,6 +219,221 @@ app.get('/checkin/:libraryId', (req, res) => {
 </html>`);
 });
 
+
+// ─── SHIFT-BASED ATTENDANCE REMINDERS (cron) ─────────────────────────────────
+// Runs every minute, checks if any shift has a reminder due
+// Check-in reminder: 30 mins before shift start
+// Check-out reminder: 15 mins before shift end
+// Only for libraries with WaBulk configured
+// Only for students with active subscriptions
+
+(async () => {
+  try {
+    const { pool } = require('./db/pool');
+
+    const runReminders = async () => {
+      try {
+        // Current time in IST (UTC+5:30)
+        const nowUTC = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const nowIST = new Date(nowUTC.getTime() + istOffset);
+        const currentHH = nowIST.getUTCHours();
+        const currentMM = nowIST.getUTCMinutes();
+        const currentTimeStr = `${String(currentHH).padStart(2,'0')}:${String(currentMM).padStart(2,'0')}`;
+        const todayIST = nowIST.toISOString().slice(0,10);
+
+        // Check-in reminder time = shift start - 30 mins
+        // Check-out reminder time = shift end - 15 mins
+        // We find shifts where reminder is due RIGHT NOW (within this minute)
+
+        // Build backend URL for check-in links
+        const CHECKIN_BASE = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL || 'https://libra-backend-gjgo.onrender.com';
+
+        const { rows: libraries } = await pool.query(`
+          SELECT l.id as library_id, l.library_name,
+                 ws.api_key, ws.session_id
+          FROM libraries l
+          JOIN whatsapp_settings ws ON ws.library_id = l.id
+          WHERE l.is_active = TRUE
+            AND l.subscription_status IN ('active', 'trial')
+            AND ws.reminders_enabled = TRUE
+        `);
+
+        if (!libraries.length) return;
+
+        for (const lib of libraries) {
+          // ── CHECK-IN REMINDERS ──
+          // Find shifts where (start_time - 30 min) = current time
+          const { rows: checkinShifts } = await pool.query(`
+            SELECT sh.id as shift_id, sh.name as shift_name,
+                   sh.start_time, sh.end_time
+            FROM shifts sh
+            WHERE sh.library_id = $1
+              AND TO_CHAR(
+                (sh.start_time::time - INTERVAL '30 minutes'),
+                'HH24:MI'
+              ) = $2
+          `, [lib.library_id, currentTimeStr]);
+
+          for (const shift of checkinShifts) {
+            // Get active students in this shift who haven't checked in today
+            const { rows: students } = await pool.query(`
+              SELECT s.id, s.name, s.phone
+              FROM students s
+              JOIN subscriptions sub ON sub.student_id = s.id
+                AND sub.library_id = $1
+                AND sub.status = 'active'
+                AND sub.end_date >= CURRENT_DATE
+                AND sub.shift_id = $2
+              WHERE s.library_id = $1
+                AND s.status = 'active'
+                AND s.phone IS NOT NULL
+                AND s.phone != ''
+                AND NOT EXISTS (
+                  SELECT 1 FROM attendance a
+                  WHERE a.student_id = s.id
+                    AND a.library_id = $1
+                    AND a.date = $3
+                )
+            `, [lib.library_id, shift.shift_id, todayIST]);
+
+            if (!students.length) continue;
+
+            const startTime = shift.start_time.slice(0,5);
+            const checkinUrl = `${CHECKIN_BASE}/checkin/${lib.library_id}`;
+            const messages = students.map(s => {
+              const phone = s.phone.replace(/\D/g, '');
+              const to = phone.startsWith('91') ? `+${phone}` : `+91${phone}`;
+              return {
+                to,
+                vars: {
+                  name:    s.name,
+                  shift:   shift.shift_name,
+                  time:    startTime,
+                  library: lib.library_name,
+                  link:    checkinUrl,
+                }
+              };
+            });
+
+            await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lib.api_key}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                session_id: lib.session_id,
+                template: `Rise and shine, {{name}}! 🌟
+
+Your {{shift}} session at {{library}} begins at {{time}}. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨
+
+We're excited to see you. Let's make today incredibly productive! 💪📚
+
+👇 *Tap below to check in when you arrive:*
+{{link}}
+
+You've got this! 🏛️`,
+                messages,
+                delay_ms: 3000,
+              }),
+            }).catch(e => console.error('[checkin reminder] WaBulk error:', e.message));
+
+            console.log(`[checkin reminder] Sent to ${messages.length} students for shift ${shift.shift_name} at library ${lib.library_name}`);
+          }
+
+          // ── CHECK-OUT REMINDERS ──
+          // Find shifts where (end_time - 15 min) = current time
+          const { rows: checkoutShifts } = await pool.query(`
+            SELECT sh.id as shift_id, sh.name as shift_name,
+                   sh.start_time, sh.end_time
+            FROM shifts sh
+            WHERE sh.library_id = $1
+              AND TO_CHAR(
+                (sh.end_time::time - INTERVAL '15 minutes'),
+                'HH24:MI'
+              ) = $2
+          `, [lib.library_id, currentTimeStr]);
+
+          for (const shift of checkoutShifts) {
+            // Get students who checked in today but haven't checked out yet
+            const { rows: students } = await pool.query(`
+              SELECT s.id, s.name, s.phone, a.check_in
+              FROM students s
+              JOIN subscriptions sub ON sub.student_id = s.id
+                AND sub.library_id = $1
+                AND sub.status = 'active'
+                AND sub.end_date >= CURRENT_DATE
+                AND sub.shift_id = $2
+              JOIN attendance a ON a.student_id = s.id
+                AND a.library_id = $1
+                AND a.date = $3
+                AND a.check_out IS NULL
+              WHERE s.library_id = $1
+                AND s.status = 'active'
+                AND s.phone IS NOT NULL
+                AND s.phone != ''
+            `, [lib.library_id, shift.shift_id, todayIST]);
+
+            if (!students.length) continue;
+
+            const endTime = shift.end_time.slice(0,5);
+            const checkoutUrl = `${CHECKIN_BASE}/checkin/${lib.library_id}`;
+            const messages = students.map(s => {
+              const phone = s.phone.replace(/\D/g, '');
+              const to = phone.startsWith('91') ? `+${phone}` : `+91${phone}`;
+              return {
+                to,
+                vars: {
+                  name:    s.name,
+                  shift:   shift.shift_name,
+                  time:    endTime,
+                  library: lib.library_name,
+                  link:    checkoutUrl,
+                }
+              };
+            });
+
+            await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lib.api_key}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                session_id: lib.session_id,
+                template: `Amazing work today, {{name}}! 🎉
+
+Your {{shift}} session at {{library}} wraps up at {{time}}. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆
+
+Please don't forget to check out before you leave — it only takes a second! 📖⭐
+
+👇 *Tap below to check out:*
+{{link}}
+
+You're one step closer to your goals today! 🚀 See you tomorrow!`,
+                messages,
+                delay_ms: 3000,
+              }),
+            }).catch(e => console.error('[checkout reminder] WaBulk error:', e.message));
+
+            console.log(`[checkout reminder] Sent to ${messages.length} students for shift ${shift.shift_name} at library ${lib.library_name}`);
+          }
+        }
+      } catch(e) {
+        console.error('[reminder cron error]', e.message);
+      }
+    };
+
+    // Run every minute
+    setInterval(runReminders, 60 * 1000);
+    console.log('✅ Shift attendance reminder cron started');
+
+  } catch(e) {
+    console.error('[reminder cron setup error]', e.message);
+  }
+})();
+
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 

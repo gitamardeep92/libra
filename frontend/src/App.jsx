@@ -1015,7 +1015,7 @@ function Attendance({ library }) {
   );
 }
 
-function Marketing({ data, library }) {
+function Marketing({ data, library, waConfigured, emailConfigured, onNavigate }) {
   const UNSPLASH_KEY = import.meta.env.VITE_UNSPLASH_KEY || "";
   const [mainTab, setMainTab] = useState("whatsapp"); // whatsapp | email | social
   const [selectedShifts, setSelectedShifts] = useState([]);
@@ -1201,6 +1201,38 @@ function Marketing({ data, library }) {
       <div className="page-header">
         <div className="page-header-left"><h1>Marketing</h1><p>Email blasts, WhatsApp & social media posts</p></div>
       </div>
+
+      {/* Setup onboarding hints */}
+      {(!waConfigured || !emailConfigured) && (
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          {!waConfigured && (
+            <div style={{background:"rgba(37,211,102,0.08)",border:"1px solid #25D366",borderRadius:9,padding:"10px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:20}}>💬</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:"#25D366"}}>WhatsApp Blast not set up yet</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>Connect WaBulk to send bulk WhatsApp messages and automatic shift reminders to students.</div>
+              </div>
+              <button className="btn btn-sm" onClick={()=>onNavigate("settings")}
+                style={{background:"#25D366",border:"none",color:"#000",fontWeight:700,whiteSpace:"nowrap"}}>
+                Set Up → Settings
+              </button>
+            </div>
+          )}
+          {!emailConfigured && (
+            <div style={{background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:9,padding:"10px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:20}}>📧</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13,color:"var(--accent)"}}>Email Blast not set up yet</div>
+                <div style={{fontSize:12,color:"var(--text3)"}}>Connect your Gmail to send free email blasts and newsletters to all students.</div>
+              </div>
+              <button className="btn btn-sm btn-secondary" onClick={()=>onNavigate("settings")}
+                style={{whiteSpace:"nowrap"}}>
+                Set Up → Settings
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main tabs */}
       <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid var(--border)"}}>
@@ -1839,6 +1871,34 @@ function Settings({ library, onUpdate }) {
   return (
     <div>
       <div className="page-header"><div className="page-header-left"><h1>Settings</h1></div></div>
+
+      {/* Onboarding checklist — shows until all set up */}
+      {(!saving) && (
+        <div className="card" style={{marginBottom:16,background:"linear-gradient(135deg,var(--surface),var(--surface2))"}}>
+          <div className="section-title" style={{marginBottom:12}}>🚀 Quick Setup Checklist</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {[
+              { done: !!library?.owner_name && !!library?.library_name, label:"Complete your library profile", tab:"profile", desc:"Add your name, library name and city" },
+              { done: false, label:"Connect Gmail for Email Blast", tab:"email", desc:"Send free newsletters & reminders to students via email" },
+              { done: false, label:"Connect WaBulk for WhatsApp", tab:"whatsapp", desc:"Send bulk WhatsApp messages + automatic shift reminders" },
+              { done: true, label:"Enable Push Notifications", tab:"notifications", desc:"Get instant alerts when students check in" },
+            ].map((item, i) => (
+              <div key={i} onClick={()=>setTab(item.tab)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,cursor:"pointer",background: item.done ? "var(--green-dim)" : "var(--surface3)",border:`1px solid ${item.done?"var(--green)":"var(--border)"}`,transition:"all 0.15s"}}>
+                <div style={{width:22,height:22,borderRadius:"50%",background: item.done ? "var(--green)" : "var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  {item.done ? <Icon name="check" size={12} color="#000"/> : <span style={{fontSize:11,color:"var(--text3)",fontWeight:700}}>{i+1}</span>}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color: item.done ? "var(--green)" : "var(--text)"}}>{item.label}</div>
+                  <div style={{fontSize:11.5,color:"var(--text3)"}}>{item.desc}</div>
+                </div>
+                {!item.done && <span style={{fontSize:11,color:"var(--accent)",fontWeight:600}}>Set up →</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="pill-tabs">
         {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
@@ -1911,12 +1971,28 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
     return data;
   };
 
+  const [reminders, setReminders] = useState(true);
+  const [togglingReminders, setTogglingReminders] = useState(false);
+
   useEffect(() => {
     authFetch("GET", "/whatsapp-settings").then(d => {
-      if (d) setForm(f => ({ ...f, sessionId: d.session_id || "" }));
+      if (d) {
+        setForm(f => ({ ...f, sessionId: d.session_id || "" }));
+        setReminders(d.reminders_enabled !== false);
+      }
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, []);
+
+  const toggleReminders = async (enabled) => {
+    setTogglingReminders(true);
+    try {
+      await authFetch("PATCH", "/whatsapp-settings/reminders", { enabled });
+      setReminders(enabled);
+      flash(enabled ? "✅ Attendance reminders enabled!" : "Reminders turned off.");
+    } catch(e) { flash(e.message || "Failed", true); }
+    finally { setTogglingReminders(false); }
+  };
 
   const save = async () => {
     if (!form.apiKey || !form.sessionId) { flash("Both API Key and Session ID are required", true); return; }
@@ -1983,6 +2059,95 @@ function WhatsAppSettings({ flash, saving, setSaving }) {
           className="btn btn-secondary" style={{fontSize:12.5}}>
           Create WaBulk Account →
         </a>
+      </div>
+
+      {/* Attendance Reminders Toggle */}
+      <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
+        <div className="section-title" style={{marginBottom:8}}>
+          <Icon name="bell" size={13} color="var(--text3)"/>Automatic Attendance Reminders
+        </div>
+        <p style={{fontSize:12.5,color:"var(--text3)",marginBottom:12,lineHeight:1.6}}>
+          When enabled, students will automatically receive WhatsApp reminders based on their shift timings —
+          <strong> 30 minutes before shift starts</strong> and <strong>15 minutes before shift ends</strong>.
+          No manual action needed.
+        </p>
+        <div style={{background:"var(--surface2)",borderRadius:9,padding:"12px 16px",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:13,color: reminders ? "var(--green)" : "var(--text2)"}}>
+              {reminders ? "✅ Reminders Active" : "⏸ Reminders Paused"}
+            </div>
+            <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>
+              {reminders
+                ? "Students are receiving shift-based check-in/out reminders"
+                : "Reminders are currently disabled for this library"}
+            </div>
+          </div>
+          <button className="btn btn-sm" disabled={togglingReminders}
+            onClick={()=>toggleReminders(!reminders)}
+            style={{
+              background: reminders ? "var(--red-dim)" : "var(--green-dim)",
+              border: `1px solid ${reminders ? "var(--red)" : "var(--green)"}`,
+              color: reminders ? "var(--red)" : "var(--green)",
+              fontWeight:600, minWidth:100,
+            }}>
+            {togglingReminders ? <Spinner size={13}/> : reminders ? "Pause" : "Enable"}
+          </button>
+        </div>
+
+        {/* How it works */}
+        <div style={{marginTop:12,fontSize:12.5,lineHeight:1.8}}>
+          <div style={{fontWeight:600,color:"var(--text2)",marginBottom:6}}>How it works:</div>
+          <div style={{color:"var(--text3)",marginBottom:10}}>
+            📱 Morning shift 8:00–3:00 PM → Reminder at <strong>7:30 AM</strong> (check-in) + <strong>2:45 PM</strong> (check-out)<br/>
+            📱 Evening shift 3:00–9:00 PM → Reminder at <strong>2:30 PM</strong> + <strong>8:45 PM</strong><br/>
+            Students who already checked in/out won't receive the reminder.
+          </div>
+
+          {/* Sample messages */}
+          <div style={{fontWeight:600,color:"var(--text2)",marginBottom:6}}>Sample messages students receive:</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <div>
+              <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📥 Check-in reminder (30 min before shift):</div>
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.7}}>
+                Rise and shine, Rahul! 🌟{"
+
+"}
+                Your Morning session at Bright Future Library begins at 08:00. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨{"
+
+"}
+                We're excited to see you. Let's make today incredibly productive! 💪📚{"
+
+"}
+                👇 <em>Tap below to check in when you arrive:</em>{"
+"}
+                https://libra-backend-gjgo.onrender.com/checkin/...{"
+
+"}
+                You've got this! 🏛️
+              </div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:"var(--text3)",marginBottom:3}}>📤 Check-out reminder (15 min before shift ends):</div>
+              <div style={{background:"#075e54",borderRadius:"0 8px 8px 8px",padding:"10px 12px",fontSize:12,color:"#dcf8c6",lineHeight:1.7}}>
+                Amazing work today, Rahul! 🎉{"
+
+"}
+                Your Morning session at Bright Future Library wraps up at 15:00. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆{"
+
+"}
+                Please don't forget to check out before you leave — it only takes a second! 📖⭐{"
+
+"}
+                👇 <em>Tap below to check out:</em>{"
+"}
+                https://libra-backend-gjgo.onrender.com/checkin/...{"
+
+"}
+                You're one step closer to your goals today! 🚀 See you tomorrow!
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2416,22 +2581,37 @@ function AuthPage({ onAuth }) {
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentReminders }) {
+function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentReminders, setupStatus }) {
+  // NEW badge style
+  const newBadge = <span style={{marginLeft:"auto",background:"var(--accent)",color:"#000",fontSize:9,fontWeight:800,padding:"2px 5px",borderRadius:4,letterSpacing:0.5}}>NEW</span>;
+  const setupBadge = <span style={{marginLeft:"auto",background:"var(--red-dim)",color:"var(--red)",fontSize:9,fontWeight:800,padding:"2px 5px",borderRadius:4,letterSpacing:0.5,border:"1px solid var(--red)"}}>SETUP</span>;
+
   const items = [
-    {id:"dashboard",icon:"home",label:"Dashboard",section:"main"},
-    {id:"students",icon:"users",label:"Students",section:"manage"},
-    {id:"plans",icon:"tag",label:"Plans & Pricing",section:"manage"},
-    {id:"shifts",icon:"clock",label:"Shifts",section:"manage"},
-    {id:"subscriptions",icon:"id",label:"Subscriptions",section:"manage"},
-    {id:"seats",icon:"seat2",label:"Seat Map",section:"manage"},
-    {id:"reminders",icon:"bell",label:"Reminders",section:"manage",badge:urgentReminders>0?urgentReminders:null},
-    {id:"expenses",icon:"rupee",label:"Expenses",section:"manage"},
-    {id:"reports",icon:"chart",label:"Reports",section:"manage"},
-    {id:"attendance",icon:"attendance",label:"Attendance",section:"manage"},
-    {id:"marketing",icon:"megaphone",label:"Marketing",section:"tools"},
-    {id:"settings",icon:"settings",label:"Settings",section:"tools"},
-    {id:"billing",icon:"payment",label:"Billing & Plans",section:"tools"},
+    {id:"dashboard",  icon:"home",      label:"Dashboard",    section:"main"},
+    {id:"students",   icon:"users",     label:"Students",     section:"manage"},
+    {id:"plans",      icon:"tag",       label:"Plans & Pricing",section:"manage"},
+    {id:"shifts",     icon:"clock",     label:"Shifts",       section:"manage"},
+    {id:"subscriptions",icon:"id",      label:"Subscriptions",section:"manage"},
+    {id:"seats",      icon:"seat2",     label:"Seat Map",     section:"manage"},
+    {id:"reminders",  icon:"bell",      label:"Reminders",    section:"manage", badge:urgentReminders>0?urgentReminders:null},
+    {id:"expenses",   icon:"rupee",     label:"Expenses",     section:"manage"},
+    {id:"reports",    icon:"chart",     label:"Reports",      section:"manage"},
+    {id:"attendance", icon:"attendance",label:"Attendance",   section:"manage"},
+    {id:"marketing",  icon:"megaphone", label:"Marketing",    section:"tools",  extra: !setupStatus?.waConfigured && !setupStatus?.emailConfigured ? setupBadge : newBadge},
+    {id:"settings",   icon:"settings",  label:"Settings",     section:"tools",  extra: (!setupStatus?.waConfigured || !setupStatus?.emailConfigured) ? setupBadge : null},
+    {id:"billing",    icon:"payment",   label:"Billing & Plans",section:"tools"},
   ];
+
+  const renderItem = (i) => (
+    <button key={i.id} className={`nav-item${active===i.id?" active":""}`}
+      onClick={()=>{onNav(i.id);onClose();}}>
+      <Icon name={i.icon} size={16}/>
+      {i.label}
+      {i.badge && <span className="nbadge">{i.badge}</span>}
+      {i.extra && !i.badge && i.extra}
+    </button>
+  );
+
   return(
     <>
       {isOpen&&<div className="sidebar-overlay" onClick={onClose}/>}
@@ -2443,12 +2623,12 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
           </div>
         </div>
         <nav className="sidebar-nav">
-          <div className="nav-section"><div className="nav-section-title">Main</div>{items.filter(i=>i.section==="main").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}</button>)}</div>
-          <div className="nav-section"><div className="nav-section-title">Management</div>{items.filter(i=>i.section==="manage").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}{i.badge&&<span className="nbadge">{i.badge}</span>}</button>)}</div>
-          <div className="nav-section"><div className="nav-section-title">Tools</div>{items.filter(i=>i.section==="tools").map(i=><button key={i.id} className={`nav-item${active===i.id?" active":""}`} onClick={()=>{onNav(i.id);onClose();}}><Icon name={i.icon} size={16}/>{i.label}</button>)}</div>
+          <div className="nav-section"><div className="nav-section-title">Main</div>{items.filter(i=>i.section==="main").map(renderItem)}</div>
+          <div className="nav-section"><div className="nav-section-title">Management</div>{items.filter(i=>i.section==="manage").map(renderItem)}</div>
+          <div className="nav-section"><div className="nav-section-title">Tools</div>{items.filter(i=>i.section==="tools").map(renderItem)}</div>
         </nav>
         <div className="sidebar-footer">
-          <div className="lib-info"><div className="lib-avatar">{library?.library_name?.[0]||"L"}</div><div><div style={{fontSize:13,fontWeight:600}}>{library?.library_name}</div><div style={{fontSize:11,color:"var(--text3)"}}>{library?.email}</div></div></div>
+          <div className="lib-info"><div className="lib-avatar">{library?.library_name?.[0]||"L"}</div><div><div style={{fontSize:13,fontWeight:600}}>{library?.library_name}</div><div style={{fontSize:11,color:"var(--text3)"}}>{library?.email||library?.phone||""}</div></div></div>
           <button className="nav-item" onClick={onLogout} style={{color:"var(--red)",marginTop:3}}><Icon name="logout" size={16}/>Logout</button>
         </div>
       </aside>
@@ -3419,6 +3599,18 @@ export default function App() {
   const [pwaPrompt, setPwaPrompt]     = useState(false);
 
   // ── Auto-update: detect new service worker and prompt user ──
+  // Track which integrations are configured (for sidebar badges)
+  const [setupStatus, setSetupStatus] = useState({ waConfigured: false, emailConfigured: false });
+  useEffect(() => {
+    if (!library) return;
+    // Check WaBulk setup
+    fetch(`${API_BASE}/api/whatsapp-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
+      .then(r=>r.json()).then(d=>{ if(d) setSetupStatus(p=>({...p, waConfigured:true})); }).catch(()=>{});
+    // Check Email setup
+    fetch(`${API_BASE}/api/email-settings`, { headers:{ Authorization:`Bearer ${getToken()}` }})
+      .then(r=>r.json()).then(d=>{ if(d) setSetupStatus(p=>({...p, emailConfigured:true})); }).catch(()=>{});
+  }, [library]);
+
   const [updateAvailable, setUpdateAvailable] = useState(false);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -3535,7 +3727,7 @@ export default function App() {
       <style>{styles}</style>
       <div className="app">
         {sidebarOpen && <div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
-        <Sidebar library={library} active={page} onNav={navigate} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders}/>
+        <Sidebar library={library} active={page} onNav={navigate} onLogout={handleLogout} isOpen={sidebarOpen} onClose={()=>setSidebarOpen(false)} urgentReminders={urgentReminders} setupStatus={setupStatus}/>
         <main className="main">
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0,flex:1}}>
@@ -3598,7 +3790,7 @@ export default function App() {
             {page==="expenses"&&<Expenses data={data} reload={reload} readonly={isReadOnly(library)}/>}
             {page==="reports"&&<Reports data={data}/>}
             {page==="attendance"&&<Attendance library={library}/>}
-            {page==="marketing"&&<Marketing data={data} library={library}/>}
+            {page==="marketing"&&<Marketing data={data} library={library} waConfigured={setupStatus.waConfigured} emailConfigured={setupStatus.emailConfigured} onNavigate={navigate}/>}
             {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
             {page==="billing"&&<Billing library={library}/>}
           </div>
