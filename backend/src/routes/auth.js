@@ -11,23 +11,35 @@ const router = express.Router();
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
-  const { ownerName, email, password, libraryName, city } = req.body;
-  if (!ownerName || !email || !password || !libraryName) {
-    return res.status(400).json({ error: 'All required fields must be provided' });
+  const { ownerName, phone, email, password, libraryName, city } = req.body;
+  if (!ownerName || !phone || !password || !libraryName) {
+    return res.status(400).json({ error: 'Name, phone, password and library name are required' });
+  }
+  // Validate phone — must be 10 digits
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit phone number' });
   }
   if (password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
   try {
-    const exists = await pool.query('SELECT id FROM libraries WHERE email = $1', [email.toLowerCase()]);
-    if (exists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    // Check phone uniqueness
+    const phoneExists = await pool.query('SELECT id FROM libraries WHERE phone = $1', [cleanPhone]);
+    if (phoneExists.rows.length) return res.status(409).json({ error: 'Phone number already registered' });
+
+    // Check email uniqueness only if provided
+    if (email) {
+      const emailExists = await pool.query('SELECT id FROM libraries WHERE email = $1', [email.toLowerCase()]);
+      if (emailExists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    }
 
     const hash = await bcrypt.hash(password, 12);
     const result = await pool.query(
-      `INSERT INTO libraries (owner_name, email, password, library_name, city, subscription_status, trial_ends_at)
-       VALUES ($1, $2, $3, $4, $5, 'trial', NOW()+INTERVAL '14 days')
-       RETURNING id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active`,
-      [ownerName, email.toLowerCase(), hash, libraryName, city || null]
+      `INSERT INTO libraries (owner_name, phone, email, password, library_name, city, subscription_status, trial_ends_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'trial', NOW()+INTERVAL '14 days')
+       RETURNING id, owner_name, phone, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active`,
+      [ownerName, cleanPhone, email ? email.toLowerCase() : null, hash, libraryName, city || null]
     );
     const lib = result.rows[0];
     const token = jwt.sign(
@@ -57,14 +69,17 @@ router.post('/register', async (req, res) => {
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (!email || !password) return res.status(400).json({ error: 'Phone/email and password required' });
   try {
+    // Support login with phone number OR email
+    const cleanInput = email.replace(/\D/g, '');
+    const isPhone = cleanInput.length >= 10 && /^\d+$/.test(cleanInput);
     const result = await pool.query(
-      `SELECT id, owner_name, email, password, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active
-       FROM libraries WHERE email = $1`,
-      [email.toLowerCase()]
+      `SELECT id, owner_name, phone, email, password, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active
+       FROM libraries WHERE ${isPhone ? 'phone = $1' : 'email = $1'}`,
+      [isPhone ? cleanInput.slice(-10) : email.toLowerCase()]
     );
-    if (!result.rows.length) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!result.rows.length) return res.status(401).json({ error: 'Invalid phone/email or password' });
     const lib = result.rows[0];
     const valid = await bcrypt.compare(password, lib.password);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
@@ -86,7 +101,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, owner_name, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active FROM libraries WHERE id = $1`,
+      `SELECT id, owner_name, phone, email, library_name, city, total_seats, open_time, close_time, created_at, subscription_status, trial_ends_at, is_active FROM libraries WHERE id = $1`,
       [req.libraryId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Library not found' });

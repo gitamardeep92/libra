@@ -420,7 +420,7 @@ function Libraries() {
   const [plans, setPlans]     = useState([]);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
-  const [form, setForm]       = useState({ ownerName:"", email:"", password:"", libraryName:"", city:"" });
+  const [form, setForm]       = useState({ ownerName:"", phone:"", email:"", password:"", libraryName:"", city:"" });
   const set = (k,v) => setForm(p=>({...p,[k]:v}));
 
   const load = useCallback(async () => {
@@ -447,7 +447,10 @@ function Libraries() {
   const impersonate = async (id) => {
     try {
       const r = await api.impersonate(id);
-      const appUrl = import.meta.env.VITE_APP_URL || "https://app.librarydesk.in";
+      // Try VITE_APP_URL first, then fallback to frontend URL based on current admin URL
+      const appUrl = import.meta.env.VITE_APP_URL ||
+        window.location.origin.replace("admin.", "").replace("-admin", "") ||
+        "https://libra-frontend.onrender.com";
       window.open(`${appUrl}?impersonate=${r.token}`, "_blank");
     } catch(e) { alert(e.message); }
   };
@@ -485,7 +488,7 @@ function Libraries() {
             : data.libraries.map(l=>(
               <tr key={l.id}>
                 <td><div style={{fontWeight:600}}>{l.library_name}</div><div className="text-xs text-muted">{l.city||"—"}</div></td>
-                <td><div style={{fontSize:13}}>{l.owner_name}</div><div className="text-xs text-muted">{l.email}</div></td>
+                <td><div style={{fontSize:13}}>{l.owner_name}</div><div className="text-xs text-muted">{l.phone||l.email||"—"}</div></td>
                 <td>{statusBadge(l.subscription_status)}</td>
                 <td><div className="text-sm">{l.saas_plan_name||"—"}</div>
                   {l.current_period_end&&<div className="text-xs text-muted">Until {fmtDate(l.current_period_end)}</div>}
@@ -515,8 +518,8 @@ function Libraries() {
         <div className="modal-body">
           {error&&<div className="alert alert-error"><Icon name="warn" size={14}/>{error}</div>}
           <div className="form-row"><div className="form-group"><label className="label">Owner Name *</label><input className="input" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></div><div className="form-group"><label className="label">Library Name *</label><input className="input" value={form.libraryName} onChange={e=>set("libraryName",e.target.value)}/></div></div>
-          <div className="form-row"><div className="form-group"><label className="label">Email *</label><input className="input" type="email" value={form.email} onChange={e=>set("email",e.target.value)}/></div><div className="form-group"><label className="label">Password *</label><input className="input" type="password" placeholder="Min 8 chars" value={form.password} onChange={e=>set("password",e.target.value)}/></div></div>
-          <div className="form-group"><label className="label">City</label><input className="input" value={form.city} onChange={e=>set("city",e.target.value)}/></div>
+          <div className="form-row"><div className="form-group"><label className="label">Phone *</label><input className="input" type="tel" placeholder="10-digit mobile" value={form.phone||""} onChange={e=>set("phone",e.target.value.replace(/\D/g,"").slice(0,10))}/></div><div className="form-group"><label className="label">Email (optional)</label><input className="input" type="email" value={form.email} onChange={e=>set("email",e.target.value)}/></div></div>
+          <div className="form-row"><div className="form-group"><label className="label">Password *</label><input className="input" type="password" placeholder="Min 8 chars" value={form.password} onChange={e=>set("password",e.target.value)}/></div><div className="form-group"><label className="label">City</label><input className="input" value={form.city} onChange={e=>set("city",e.target.value)}/></div></div>
         </div>
         <div className="modal-footer"><button className="btn btn-secondary" onClick={()=>{setShowModal(false);setError("");}}>Cancel</button><button className="btn btn-primary" onClick={saveLib} disabled={saving}>{saving&&<Spinner/>}Create Library</button></div>
       </div></div>}
@@ -529,13 +532,38 @@ function Libraries() {
         </div>
         <div className="modal-body">
           {!detailData ? <div style={{textAlign:"center",padding:20}}><Spinner/></div> : (<>
+            {/* Key stats */}
             <div className="grid-3 mb-3">
               <div className="card-sm"><div className="text-xs text-muted">Status</div><div style={{marginTop:4}}>{statusBadge(showDetail.subscription_status)}</div></div>
-              <div className="card-sm"><div className="text-xs text-muted">Students</div><div style={{fontWeight:700,marginTop:4}}>{detailData.library?.student_count||0}</div></div>
-              <div className="card-sm"><div className="text-xs text-muted">Joined</div><div style={{fontSize:12,marginTop:4}}>{fmtDate(detailData.library?.created_at)}</div></div>
+              <div className="card-sm"><div className="text-xs text-muted">Students</div><div style={{fontWeight:700,fontSize:18,marginTop:2}}>{detailData.library?.student_count||0}</div></div>
+              <div className="card-sm"><div className="text-xs text-muted">Active Subs</div><div style={{fontWeight:700,fontSize:18,marginTop:2}}>{detailData.library?.active_subs||0}</div></div>
             </div>
+
+            {/* Library details */}
+            <div className="section-title">Library Details</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+              {[
+                ["Owner", detailData.library?.owner_name],
+                ["Phone", detailData.library?.phone || "—"],
+                ["Email", detailData.library?.email || "—"],
+                ["City", detailData.library?.city || "—"],
+                ["Total Seats", detailData.library?.total_seats],
+                ["Joined", fmtDate(detailData.library?.created_at)],
+                ["Open Hours", detailData.library?.open_time && detailData.library?.close_time ? `${detailData.library.open_time} – ${detailData.library.close_time}` : "—"],
+                ["Trial Ends", detailData.library?.trial_ends_at ? fmtDate(detailData.library.trial_ends_at) : "—"],
+                ["WhatsApp Setup", detailData.library?.wa_configured ? "✅ Connected" : "❌ Not set up"],
+                ["Email Setup", detailData.library?.email_configured ? "✅ Connected" : "❌ Not set up"],
+              ].map(([label, value]) => (
+                <div key={label} style={{background:"var(--surface2)",borderRadius:7,padding:"8px 10px"}}>
+                  <div style={{fontSize:10,color:"var(--text3)",textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>{label}</div>
+                  <div style={{fontSize:13,fontWeight:500,color:"var(--text)"}}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Subscription History */}
             <div className="section-title">Subscription History</div>
-            {detailData.subscriptions?.length===0 ? <div className="text-muted text-sm mb-3">No subscriptions</div> :
+            {detailData.subscriptions?.length===0 ? <div className="text-muted text-sm mb-3">No subscriptions yet</div> :
               detailData.subscriptions?.map(s=>(
                 <div key={s.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border)",fontSize:13}}>
                   <div><div style={{fontWeight:600}}>{s.plan_name}</div><div className="text-xs text-muted">{fmtDate(s.current_period_start)} → {fmtDate(s.current_period_end)}</div></div>
@@ -543,8 +571,10 @@ function Libraries() {
                 </div>
               ))
             }
+
+            {/* Payment History */}
             <div className="section-title mt-3">Payment History</div>
-            {detailData.payments?.length===0 ? <div className="text-muted text-sm">No payments</div> :
+            {detailData.payments?.length===0 ? <div className="text-muted text-sm">No payments recorded</div> :
               detailData.payments?.map(p=>(
                 <div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--border)",fontSize:13}}>
                   <div><div style={{fontWeight:600}}>{fmt(p.amount)}</div><div className="text-xs text-muted">{p.payment_method} · {fmtDate(p.paid_at)}</div></div>

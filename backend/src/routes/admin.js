@@ -145,7 +145,7 @@ router.get('/libraries', adminAuth, async (req, res) => {
 
     const [rows, total] = await Promise.all([
       pool.query(`
-        SELECT l.id, l.library_name, l.owner_name, l.email, l.city,
+        SELECT l.id, l.library_name, l.owner_name, l.phone, l.email, l.city,
                l.total_seats, l.is_active, l.subscription_status,
                l.trial_ends_at, l.created_at,
                (SELECT COUNT(*) FROM students   WHERE library_id=l.id) AS student_count,
@@ -164,7 +164,7 @@ router.get('/libraries', adminAuth, async (req, res) => {
 // GET /api/admin/libraries/:id
 router.get('/libraries/:id', adminAuth, async (req, res) => {
   try {
-    const [lib, subs, payments] = await Promise.all([
+    const [lib, subs, payments, counts] = await Promise.all([
       pool.query(`SELECT l.*, ss.plan_name AS saas_plan_name, ss.status AS saas_status,
                          ss.current_period_end, ss.amount_paid
                   FROM libraries l
@@ -174,27 +174,44 @@ router.get('/libraries/:id', adminAuth, async (req, res) => {
       pool.query(`SELECT sp.*, i.invoice_number FROM saas_payments sp
                   LEFT JOIN invoices i ON i.payment_id=sp.id
                   WHERE sp.library_id=$1 ORDER BY sp.created_at DESC`, [req.params.id]),
+      pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM students WHERE library_id=$1) AS student_count,
+          (SELECT COUNT(*) FROM students WHERE library_id=$1 AND status='active') AS active_students,
+          (SELECT COUNT(*) FROM subscriptions WHERE library_id=$1 AND status='active' AND end_date>=CURRENT_DATE) AS active_subs,
+          (SELECT COUNT(*) FROM subscriptions WHERE library_id=$1) AS total_subs,
+          (SELECT COUNT(*) FROM expenses WHERE library_id=$1) AS expense_count,
+          (SELECT COUNT(*) FROM reminders WHERE library_id=$1 AND done=FALSE) AS pending_reminders,
+          EXISTS(SELECT 1 FROM whatsapp_settings WHERE library_id=$1) AS wa_configured,
+          EXISTS(SELECT 1 FROM email_settings WHERE library_id=$1) AS email_configured
+      `, [req.params.id]),
     ]);
     if (!lib.rows.length) return res.status(404).json({ error: 'Library not found' });
     const { password: _, ...libData } = lib.rows[0];
-    res.json({ library: libData, subscriptions: subs.rows, payments: payments.rows });
+    const extra = counts.rows[0];
+    res.json({ library: { ...libData, ...extra }, subscriptions: subs.rows, payments: payments.rows });
   } catch(err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 
 // POST /api/admin/libraries  —  Manually create a library account
 router.post('/libraries', adminAuth, async (req, res) => {
-  const { ownerName, email, password, libraryName, city, planId } = req.body;
-  if (!ownerName||!email||!password||!libraryName) return res.status(400).json({ error: 'All fields required' });
+  const { ownerName, phone, email, password, libraryName, city, planId } = req.body;
+  if (!ownerName||!phone||!password||!libraryName) return res.status(400).json({ error: 'Owner name, phone, password and library name are required' });
+  const cleanPhone = phone.replace(/\D/g, '');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const exists = await client.query('SELECT id FROM libraries WHERE email=$1', [email.toLowerCase()]);
-    if (exists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    const phoneExists = await client.query('SELECT id FROM libraries WHERE phone=$1', [cleanPhone]);
+    if (phoneExists.rows.length) return res.status(409).json({ error: 'Phone number already registered' });
+    if (email) {
+      const emailExists = await client.query('SELECT id FROM libraries WHERE email=$1', [email.toLowerCase()]);
+      if (emailExists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    }
     const hash = await bcrypt.hash(password, 12);
     const lib = await client.query(
-      `INSERT INTO libraries (owner_name,email,password,library_name,city,subscription_status,trial_ends_at)
-       VALUES ($1,$2,$3,$4,$5,'trial',NOW()+INTERVAL '14 days') RETURNING *`,
-      [ownerName, email.toLowerCase(), hash, libraryName, city||null]
+      `INSERT INTO libraries (owner_name,phone,email,password,library_name,city,subscription_status,trial_ends_at)
+       VALUES ($1,$2,$3,$4,$5,$6,'trial',NOW()+INTERVAL '14 days') RETURNING *`,
+      [ownerName, cleanPhone, email ? email.toLowerCase() : null, hash, libraryName, city||null]
     );
     const libId = lib.rows[0].id;
     // Create trial subscription

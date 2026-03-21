@@ -2311,7 +2311,7 @@ function NotificationSettings() {
 // ─── AUTH PAGE ────────────────────────────────────────────────────────────────
 function AuthPage({ onAuth }) {
   const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ ownerName:"", email:"", password:"", libraryName:"", city:"" });
+  const [form, setForm] = useState({ ownerName:"", phone:"", email:"", password:"", libraryName:"", city:"" });
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2390,12 +2390,15 @@ function AuthPage({ onAuth }) {
         {error&&<div className="alert alert-error"><Icon name="warn" size={15} color="var(--red)"/><span style={{fontSize:13}}>{error}</span></div>}
         {mode==="register"&&<>
           <div className="form-row">
-            <div className="form-group"><label className="label">Your Name</label><input className="input" placeholder="John Doe" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></div>
-            <div className="form-group"><label className="label">Library Name</label><input className="input" placeholder="Central Library" value={form.libraryName} onChange={e=>set("libraryName",e.target.value)}/></div>
+            <div className="form-group"><label className="label">Your Name *</label><input className="input" placeholder="John Doe" value={form.ownerName} onChange={e=>set("ownerName",e.target.value)}/></div>
+            <div className="form-group"><label className="label">Library Name *</label><input className="input" placeholder="Central Library" value={form.libraryName} onChange={e=>set("libraryName",e.target.value)}/></div>
           </div>
-          <div className="form-group"><label className="label">City</label><input className="input" placeholder="City" value={form.city} onChange={e=>set("city",e.target.value)}/></div>
+          <div className="form-row">
+            <div className="form-group"><label className="label">Phone Number *</label><input className="input" type="tel" placeholder="10-digit mobile number" value={form.phone} onChange={e=>set("phone",e.target.value.replace(/\D/g,"").slice(0,10))}/></div>
+            <div className="form-group"><label className="label">City</label><input className="input" placeholder="City" value={form.city} onChange={e=>set("city",e.target.value)}/></div>
+          </div>
         </>}
-        <div className="form-group"><label className="label">Email</label><input className="input" type="email" placeholder="email@library.com" value={form.email} onChange={e=>set("email",e.target.value)}/></div>
+        <div className="form-group"><label className="label">{mode==="register"?"Email (optional)":"Phone or Email"}</label><input className="input" type={mode==="register"?"email":"text"} placeholder={mode==="register"?"email@library.com (optional)":"Phone number or email"} value={form.email} onChange={e=>set("email",e.target.value)}/></div>
         <div className="form-group"><label className="label">Password</label>
           <div style={{position:"relative"}}>
             <input className="input" type={showPass?"text":"password"} placeholder="••••••••" value={form.password} onChange={e=>set("password",e.target.value)} style={{paddingRight:42}} onKeyDown={e=>e.key==="Enter"&&submit()}/>
@@ -3452,8 +3455,16 @@ export default function App() {
 
   const { data, setData, reload, loading } = useLibraryData(!!library);
 
-  // Restore session on mount
+  // Restore session on mount — also handles ?impersonate=TOKEN from admin panel
   useEffect(() => {
+    // Check for impersonate token in URL (admin "Open in App" feature)
+    const params = new URLSearchParams(window.location.search);
+    const impToken = params.get('impersonate');
+    if (impToken) {
+      setToken(impToken);
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+    }
     const token = getToken();
     if (!token) { setChecking(false); return; }
     api.auth.me()

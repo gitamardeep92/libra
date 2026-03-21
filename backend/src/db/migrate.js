@@ -116,6 +116,9 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='reset_token_expires') THEN
     ALTER TABLE libraries ADD COLUMN reset_token_expires TIMESTAMPTZ;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='phone') THEN
+    ALTER TABLE libraries ADD COLUMN phone VARCHAR(20);
+  END IF;
 END $$;
 
 
