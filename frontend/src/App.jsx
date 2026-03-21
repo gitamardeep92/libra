@@ -3388,7 +3388,7 @@ export default function App() {
 
   // Load VAPID key + check existing permission on mount
   useEffect(()=>{
-    fetch('/api/push/vapid-public-key').then(r=>r.json()).then(d=>{ if(d.key) setVapidKey(d.key); }).catch(()=>{});
+    fetch(`${API_BASE}/api/push/vapid-public-key`).then(r=>r.json()).then(d=>{ if(d.key) setVapidKey(d.key); }).catch(()=>{});
     if('Notification' in window) setNotifState(Notification.permission);
   },[]);
 
