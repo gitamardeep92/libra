@@ -324,16 +324,19 @@ app.get('/checkin/:libraryId', (req, res) => {
               },
               body: JSON.stringify({
                 session_id: lib.session_id,
-                template: `Rise and shine, {{name}}! 🌟
-
-Your {{shift}} session at {{library}} begins at {{time}}. Every great achiever started with simply showing up — and today is YOUR day to shine! ✨
-
-We're excited to see you. Let's make today incredibly productive! 💪📚
-
-👇 *Tap below to check in when you arrive:*
-{{link}}
-
-You've got this! 🏛️`,
+                template: (()=>{
+                  const day = nowIST.getUTCDay(); // 0=Sun,1=Mon,...,6=Sat
+                  const msgs = [
+                    `Good morning, {{name}}! 🌅 A peaceful Sunday study session awaits. Your {{shift}} session begins at {{time}}. Quiet mind, sharp focus — come scan in and today is yours! 🧘📖\n— {{library}}`,
+                    `Rise and shine, {{name}}! 🌟 A new week, a fresh start — your {{shift}} session begins at {{time}}. Champions show up on Mondays, be one! Head to the library, scan in and let's make this week count! 💪📚\n— {{library}}`,
+                    `Good morning, {{name}}! ✨ Day 2 and you're already making it count. Your {{shift}} session starts at {{time}}. Every page you read brings you closer to your goal — come scan in and get started! 📖\n— {{library}}`,
+                    `Hey {{name}}! 🌈 Midweek already — you're doing amazing! Your {{shift}} session begins at {{time}}. Push through, the weekend is closer than you think. We're waiting for you — scan in and own today! 🚀\n— {{library}}`,
+                    `Almost there, {{name}}! 🔥 One more push before the weekend. Your {{shift}} starts at {{time}}. Today's effort is tomorrow's result — head in, scan and make it happen! 💡📚\n— {{library}}`,
+                    `Happy Friday, {{name}}! 🎉 End the week on a high note! Your {{shift}} session begins at {{time}}. Finish strong — come scan in and let your future self thank you! ⭐\n— {{library}}`,
+                    `Weekend warrior alert, {{name}}! 💥 While others rest, you invest in yourself. Your {{shift}} starts at {{time}}. Head to the library, scan in — that's what sets you apart! 🏆📚\n— {{library}}`,
+                  ];
+                  return msgs[day];
+                })(),
                 messages,
                 delay_ms: 3000,
               }),
@@ -402,16 +405,19 @@ You've got this! 🏛️`,
               },
               body: JSON.stringify({
                 session_id: lib.session_id,
-                template: `Amazing work today, {{name}}! 🎉
-
-Your {{shift}} session at {{library}} wraps up at {{time}}. You showed up, you focused, and you gave it your best — that's what sets true achievers apart! 🏆
-
-Please don't forget to check out before you leave — it only takes a second! 📖⭐
-
-👇 *Tap below to check out:*
-{{link}}
-
-You're one step closer to your goals today! 🚀 See you tomorrow!`,
+                template: (()=>{
+                  const day = nowIST.getUTCDay();
+                  const msgs = [
+                    `Beautiful Sunday session, {{name}}! 🌅 Your {{shift}} wraps up at {{time}}. Scan out before you leave — you've set the perfect tone for the week ahead. See you Monday! 🧘\n— {{library}}`,
+                    `Great start to the week, {{name}}! 🌟 Your {{shift}} session wraps up at {{time}}. Before you leave, don't forget to scan out at the desk. You showed up and that's everything — see you tomorrow! 💪\n— {{library}}`,
+                    `Brilliant work today, {{name}}! ✨ Your session ends at {{time}}. Please scan out before leaving — two days strong, you're building an unstoppable habit! 📚\n— {{library}}`,
+                    `Halfway hero, {{name}}! 🌈 Your {{shift}} session concludes at {{time}}. Remember to scan out before you head home — that consistency is your superpower! 🚀\n— {{library}}`,
+                    `Almost at the finish line, {{name}}! 🔥 Your session wraps up at {{time}}. Scan out before leaving — one more day and you've conquered the week! 💡\n— {{library}}`,
+                    `What a week, {{name}}! 🎉 Your {{shift}} session ends at {{time}}. Please scan out before you leave — you earned this weekend, enjoy it and come back recharged! ⭐\n— {{library}}`,
+                    `Weekend warrior mission complete, {{name}}! 💥 Your session ends at {{time}}. Don't forget to scan out — most people relaxed today but you chose growth. Be proud! 🏆\n— {{library}}`,
+                  ];
+                  return msgs[day];
+                })(),
                 messages,
                 delay_ms: 3000,
               }),
