@@ -1897,7 +1897,7 @@ function Settings({ library, onUpdate, setupStatus }) {
       )}
 
       <div className="pill-tabs">
-        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["notifications","Notifications"]].map(([v,l])=>(
+        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["librarypage","🌐 Library Page"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
         ))}
       </div>
@@ -1947,6 +1947,167 @@ function Settings({ library, onUpdate, setupStatus }) {
       {tab==="whatsapp"&&(
         <WhatsAppSettings flash={flash} saving={saving} setSaving={setSaving}/>
       )}
+    </div>
+  );
+}
+
+
+// ─── LIBRARY PAGE SETTINGS COMPONENT ─────────────────────────────────────────
+function LibraryPageSettings({ library, flash, saving, setSaving }) {
+  const [form, setForm]       = useState({ tagline:"", address:"", contactPhone:"", amenities:"" });
+  const [slug, setSlug]       = useState("");
+  const [loaded, setLoaded]   = useState(false);
+  const [showStandy, setShowStandy] = useState(false);
+  const FRONTEND_URL = import.meta.env.VITE_APP_URL || window.location.origin;
+
+  const authFetch = async (method, path, body) => {
+    const res = await fetch(`${API_BASE}/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  };
+
+  useEffect(() => {
+    authFetch("GET", "/library/slug").then(d => {
+      if (d) {
+        setSlug(d.slug || "");
+        setForm(f => ({
+          ...f,
+          tagline: library?.tagline || "",
+          address: library?.address || "",
+          contactPhone: library?.contact_phone || library?.phone || "",
+          amenities: library?.amenities || "",
+        }));
+      }
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await authFetch("PATCH", "/library/profile", {
+        tagline: form.tagline,
+        address: form.address,
+        contactPhone: form.contactPhone,
+        amenities: form.amenities,
+      });
+      flash("Library page updated! ✅");
+    } catch(e) { flash(e.message || "Failed", true); }
+    finally { setSaving(false); }
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(`${FRONTEND_URL}/lib/${slug}`);
+    flash("Link copied to clipboard!");
+  };
+
+  const pageUrl = `${FRONTEND_URL}/lib/${slug}`;
+
+  if (!loaded) return <div style={{padding:20}}><Spinner size={20}/></div>;
+
+  return (
+    <div style={{maxWidth:560}}>
+      {/* Page URL */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="section-title" style={{marginBottom:8}}>🌐 Your Library Page URL</div>
+        <div style={{background:"var(--surface2)",borderRadius:8,padding:"10px 14px",display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <div style={{flex:1,fontSize:13,color:"var(--accent)",fontWeight:600,wordBreak:"break-all"}}>{pageUrl}</div>
+          <button className="btn btn-secondary btn-sm" onClick={copyLink}>Copy</button>
+          <a href={pageUrl} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Open →</a>
+        </div>
+        <div style={{fontSize:12,color:"var(--text3)",lineHeight:1.6}}>
+          Share this link with students or print it on your standy. Students can view your library details, check seat availability and submit booking requests.
+        </div>
+      </div>
+
+      {/* Profile details */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="section-title" style={{marginBottom:12}}>📝 Public Profile</div>
+        <div className="form-group">
+          <label className="label">Tagline</label>
+          <input className="input" placeholder="e.g. Your perfect study destination in the city"
+            value={form.tagline} onChange={e=>setForm(f=>({...f,tagline:e.target.value}))}/>
+        </div>
+        <div className="form-group">
+          <label className="label">Address</label>
+          <input className="input" placeholder="e.g. 2nd Floor, ABC Complex, Main Road, City"
+            value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))}/>
+        </div>
+        <div className="form-group">
+          <label className="label">Contact Phone (shown on landing page)</label>
+          <input className="input" placeholder="Phone number students can call"
+            value={form.contactPhone} onChange={e=>setForm(f=>({...f,contactPhone:e.target.value}))}/>
+        </div>
+        <div className="form-group">
+          <label className="label">Amenities (comma separated)</label>
+          <input className="input" placeholder="WiFi, AC, CCTV, Parking, Water, Locker"
+            value={form.amenities} onChange={e=>setForm(f=>({...f,amenities:e.target.value}))}/>
+          <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>These appear as tags on your landing page</div>
+        </div>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
+          {saving?<Spinner size={15}/>:null}Save Profile
+        </button>
+      </div>
+
+      {/* Printable Standy */}
+      <div className="card">
+        <div className="section-title" style={{marginBottom:8}}>🖨️ Printable QR Standy</div>
+        <div style={{fontSize:12.5,color:"var(--text3)",marginBottom:12,lineHeight:1.6}}>
+          Print this standy and place it on your front desk or notice board. Students scan the QR to view your library page and book a seat.
+        </div>
+        <button className="btn btn-secondary" onClick={()=>setShowStandy(!showStandy)} style={{marginBottom:16}}>
+          {showStandy ? "Hide Standy Preview" : "Show Standy Preview 📋"}
+        </button>
+
+        {showStandy && (
+          <>
+            {/* Standy design */}
+            <div id="standy-print" style={{
+              background:"#fff", color:"#000", borderRadius:16, padding:28,
+              maxWidth:320, margin:"0 auto", textAlign:"center",
+              border:"3px solid #e8a838", fontFamily:"'Plus Jakarta Sans', sans-serif",
+            }}>
+              <div style={{fontSize:28, marginBottom:4}}>📚</div>
+              <div style={{fontSize:20,fontWeight:800,color:"#e8a838",marginBottom:2}}>{library?.library_name}</div>
+              {form.tagline && <div style={{fontSize:12,color:"#666",marginBottom:12}}>{form.tagline}</div>}
+
+              <div style={{background:"#fff8e6",border:"2px dashed #e8a838",borderRadius:12,padding:16,marginBottom:12}}>
+                {/* QR placeholder — in real app use qrcode library */}
+                <div style={{width:140,height:140,background:"#f0f0f0",borderRadius:8,margin:"0 auto 8px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#999"}}>
+                  QR Code<br/>(scan to visit)
+                </div>
+                <div style={{fontSize:10,color:"#666",wordBreak:"break-all"}}>{pageUrl}</div>
+              </div>
+
+              <div style={{fontSize:13,fontWeight:700,color:"#333",marginBottom:4}}>📱 Scan to Book Your Seat</div>
+              <div style={{fontSize:11,color:"#666",marginBottom:12,lineHeight:1.5}}>View plans, check availability<br/>& submit booking request</div>
+
+              {form.contactPhone && (
+                <div style={{background:"#f5f5f5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#333"}}>
+                  📞 Call us: <strong>{form.contactPhone}</strong>
+                </div>
+              )}
+
+              <div style={{marginTop:12,fontSize:9,color:"#aaa"}}>Powered by LibraryDesk.in</div>
+            </div>
+
+            <div style={{marginTop:12,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={()=>window.print()}
+                style={{gap:8}}>
+                <Icon name="send" size={14}/>Print Standy
+              </button>
+              <div style={{fontSize:12,color:"var(--text3)",alignSelf:"center"}}>
+                Note: For QR code, use <a href={`https://qr-code-generator.com/?data=${encodeURIComponent(pageUrl)}`} target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>qr-code-generator.com</a> with your page URL
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -3052,9 +3213,53 @@ function Plans({ data, reload, readonly=false }) {
 
 function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   const [showModal, setShowModal] = useState(!!prefill);
-  const [editSub, setEditSub]     = useState(null); // subscription being edited
+  const [editSub, setEditSub]     = useState(null);
   const [search, setSearch]       = useState("");
   const [filter, setFilter]       = useState("all");
+  const [bookingRequests, setBookingRequests] = useState([]);
+  const [bookingLoading, setBookingLoading]   = useState(true);
+  const [declineModal, setDeclineModal]       = useState(null);
+  const [declineReason, setDeclineReason]     = useState("");
+  const [actionLoading, setActionLoading]     = useState(null);
+
+  const fetchBookings = async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/bookings?status=pending`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      const d = await r.json();
+      setBookingRequests(Array.isArray(d) ? d : []);
+    } catch(e) { setBookingRequests([]); }
+    finally { setBookingLoading(false); }
+  };
+
+  useEffect(() => { fetchBookings(); }, []);
+
+  const approveBooking = async (id) => {
+    setActionLoading(id);
+    try {
+      const r = await fetch(`${API_BASE}/api/bookings/${id}/approve`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      });
+      if (r.ok) { fetchBookings(); reload(['students','subscriptions']); }
+    } catch(e) {}
+    finally { setActionLoading(null); }
+  };
+
+  const declineBooking = async (id) => {
+    setActionLoading(id);
+    try {
+      await fetch(`${API_BASE}/api/bookings/${id}/decline`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: declineReason }),
+      });
+      setDeclineModal(null); setDeclineReason('');
+      fetchBookings();
+    } catch(e) {}
+    finally { setActionLoading(null); }
+  };
   const emptyForm = {studentId:"",planId:"",startDate:today(),seatNumber:String(prefill?.seatNumber||""),shiftId:prefill?.shiftId||"",paymentMode:"cash",discount:0,notes:"",isRenewal:false};
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving]   = useState(false);
@@ -3210,6 +3415,72 @@ function Subscriptions({ data, reload, prefill, onClearPrefill, library }) {
   return(
     <div>
       <div className="page-header">
+        {/* ── PENDING BOOKING REQUESTS ── */}
+        {bookingRequests.length > 0 && (
+          <div style={{background:"var(--accent-dim)",border:"1px solid var(--accent)",borderRadius:12,padding:"14px 16px",marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <span style={{fontSize:16}}>📋</span>
+              <div style={{fontWeight:700,fontSize:14,color:"var(--accent)"}}>
+                {bookingRequests.length} Pending Seat Request{bookingRequests.length>1?"s":""}
+              </div>
+              <span style={{fontSize:11,color:"var(--text3)",marginLeft:4}}>— Review and approve or decline</span>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {bookingRequests.map(b=>(
+                <div key={b.id} style={{background:"var(--surface)",borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",border:"1px solid var(--border)"}}>
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontWeight:600,fontSize:14}}>{b.student_name}</div>
+                    <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>{b.phone} · {b.plan_name}{b.shift_name?` · ${b.shift_name}`:""}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:1}}>{new Date(b.created_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+                  </div>
+                  <div style={{fontWeight:700,fontSize:15,color:"var(--accent)"}}>₹{Number(b.amount).toLocaleString("en-IN")}</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="btn btn-sm" onClick={()=>approveBooking(b.id)}
+                      disabled={actionLoading===b.id}
+                      style={{background:"var(--green-dim)",border:"1px solid var(--green)",color:"var(--green)",fontWeight:700,gap:6}}>
+                      {actionLoading===b.id ? <Spinner size={12}/> : "✅ Approve"}
+                    </button>
+                    <button className="btn btn-sm" onClick={()=>{setDeclineModal(b);setDeclineReason("");}}
+                      disabled={actionLoading===b.id}
+                      style={{background:"var(--red-dim)",border:"1px solid var(--red)",color:"var(--red)",fontWeight:700}}>
+                      ❌ Decline
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Decline reason modal */}
+        {declineModal && (
+          <div className="modal-overlay">
+            <div className="modal" style={{maxWidth:380}}>
+              <div className="modal-header">
+                <h2 className="modal-title">Decline Booking</h2>
+                <button className="btn btn-ghost btn-icon" onClick={()=>setDeclineModal(null)}><Icon name="x" size={17}/></button>
+              </div>
+              <div className="modal-body">
+                <div style={{fontSize:13,color:"var(--text2)",marginBottom:12}}>
+                  Declining booking for <strong>{declineModal.student_name}</strong> — {declineModal.plan_name}
+                </div>
+                <div className="form-group">
+                  <label className="label">Reason (optional — sent to student via WhatsApp)</label>
+                  <textarea className="input textarea" rows={3} placeholder="e.g. Seats currently full, please try next month..."
+                    value={declineReason} onChange={e=>setDeclineReason(e.target.value)}/>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={()=>setDeclineModal(null)}>Cancel</button>
+                <button className="btn btn-danger" onClick={()=>declineBooking(declineModal.id)}
+                  disabled={actionLoading===declineModal.id} style={{background:"var(--red)",borderColor:"var(--red)"}}>
+                  {actionLoading===declineModal.id?<Spinner size={13}/>:null}Confirm Decline
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="page-header-left"><h1>Subscriptions</h1><p>{(data.subscriptions||[]).filter(s=>s.status==="active"&&daysDiff(s.end_date)>=0).length} active</p></div>
         <div className="flex items-center gap-2">
           <div className="search-bar"><Icon name="search" size={15} color="var(--text3)"/><input placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)}/></div>

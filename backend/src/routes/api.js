@@ -884,5 +884,415 @@ router.post('/whatsapp-blast', async (req, res) => {
 });
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC LIBRARY PAGE ROUTES (no auth)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/public/library/:slug — full library details for landing page
+router.get('/public/library/:slug', async (req, res) => {
+  try {
+    const libRes = await pool.query(
+      `SELECT id, library_name, owner_name, city, address, tagline, contact_phone,
+              total_seats, open_time, close_time, amenities, slug
+       FROM libraries
+       WHERE slug=$1 AND is_active=TRUE`,
+      [req.params.slug]
+    );
+    if (!libRes.rows.length) return res.status(404).json({ error: 'Library not found' });
+    const lib = libRes.rows[0];
+
+    const [shifts, plans, occupiedSeats] = await Promise.all([
+      pool.query(`SELECT * FROM shifts WHERE library_id=$1 ORDER BY start_time`, [lib.id]),
+      pool.query(`SELECT * FROM plans WHERE library_id=$1 ORDER BY price ASC`, [lib.id]),
+      // Count occupied seats per shift (active subscriptions)
+      pool.query(`
+        SELECT shift_id, COUNT(DISTINCT seat_number) as occupied
+        FROM subscriptions
+        WHERE library_id=$1 AND status='active' AND end_date>=CURRENT_DATE
+          AND seat_number IS NOT NULL
+        GROUP BY shift_id
+      `, [lib.id]),
+    ]);
+
+    // Also count pending booking requests
+    const pendingSeats = await pool.query(`
+      SELECT shift_id, COUNT(*) as pending
+      FROM booking_requests
+      WHERE library_id=$1 AND status='pending'
+      GROUP BY shift_id
+    `, [lib.id]);
+
+    // Build availability map
+    const occupiedMap = {};
+    occupiedSeats.rows.forEach(r => { occupiedMap[r.shift_id] = parseInt(r.occupied); });
+    const pendingMap = {};
+    pendingSeats.rows.forEach(r => { pendingMap[r.shift_id] = parseInt(r.pending); });
+
+    const shiftsWithAvailability = shifts.rows.map(sh => ({
+      ...sh,
+      occupied: occupiedMap[sh.id] || 0,
+      pending:  pendingMap[sh.id]  || 0,
+      available: lib.total_seats - (occupiedMap[sh.id] || 0) - (pendingMap[sh.id] || 0),
+    }));
+
+    res.json({
+      library: lib,
+      shifts: shiftsWithAvailability,
+      plans: plans.rows,
+    });
+  } catch(err) {
+    console.error('[public library]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/public/student/:phone/:librarySlug — student portal login
+router.get('/public/student/:phone/:slug', async (req, res) => {
+  try {
+    const libRes = await pool.query(`SELECT id FROM libraries WHERE slug=$1`, [req.params.slug]);
+    if (!libRes.rows.length) return res.status(404).json({ error: 'Library not found' });
+    const libraryId = libRes.rows[0].id;
+
+    const phone = req.params.phone.replace(/\D/g, '').slice(-10);
+    // Check if student exists
+    const stRes = await pool.query(
+      `SELECT s.*, 
+              sub.plan_name, sub.shift_name, sub.seat_number, sub.end_date, sub.status as sub_status,
+              sub.start_date, sub.amount
+       FROM students s
+       LEFT JOIN subscriptions sub ON sub.student_id=s.id AND sub.library_id=$1
+         AND sub.status='active' AND sub.end_date>=CURRENT_DATE
+       WHERE RIGHT(REGEXP_REPLACE(s.phone,'[^0-9]','','g'),10)=$2 AND s.library_id=$1
+       LIMIT 1`,
+      [libraryId, phone]
+    );
+
+    // Also check pending booking requests
+    const bookingRes = await pool.query(
+      `SELECT * FROM booking_requests
+       WHERE library_id=$1 AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),10)=$2
+       ORDER BY created_at DESC LIMIT 5`,
+      [libraryId, phone]
+    );
+
+    if (!stRes.rows.length && !bookingRes.rows.length) {
+      return res.status(404).json({ error: 'No account found with this phone number' });
+    }
+
+    const { password: _, ...studentData } = stRes.rows[0] || {};
+    res.json({
+      student: stRes.rows.length ? studentData : null,
+      bookings: bookingRes.rows,
+    });
+  } catch(err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/public/booking — create a booking request
+router.post('/public/booking', async (req, res) => {
+  const { librarySlug, studentName, phone, email, planId, shiftId, notes } = req.body;
+  if (!librarySlug || !studentName || !phone || !planId) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  try {
+    // Get library
+    const libRes = await pool.query(
+      `SELECT id, library_name, total_seats FROM libraries WHERE slug=$1 AND is_active=TRUE`,
+      [librarySlug]
+    );
+    if (!libRes.rows.length) return res.status(404).json({ error: 'Library not found' });
+    const lib = libRes.rows[0];
+
+    // Get plan
+    const planRes = await pool.query(`SELECT * FROM plans WHERE id=$1 AND library_id=$2`, [planId, lib.id]);
+    if (!planRes.rows.length) return res.status(404).json({ error: 'Plan not found' });
+    const plan = planRes.rows[0];
+
+    // Get shift
+    let shift = null;
+    if (shiftId) {
+      const shiftRes = await pool.query(`SELECT * FROM shifts WHERE id=$1`, [shiftId]);
+      shift = shiftRes.rows[0] || null;
+    }
+
+    // Check availability
+    const occupiedRes = await pool.query(`
+      SELECT COUNT(*) as count FROM subscriptions
+      WHERE library_id=$1 AND shift_id=$2 AND status='active' AND end_date>=CURRENT_DATE
+    `, [lib.id, shiftId]);
+    const pendingRes = await pool.query(`
+      SELECT COUNT(*) as count FROM booking_requests
+      WHERE library_id=$1 AND shift_id=$2 AND status='pending'
+    `, [lib.id, shiftId]);
+
+    const occupied = parseInt(occupiedRes.rows[0].count);
+    const pending  = parseInt(pendingRes.rows[0].count);
+    const available = lib.total_seats - occupied - pending;
+
+    if (available <= 0) {
+      return res.status(400).json({ error: 'No seats available for this shift. Please contact the library.' });
+    }
+
+    // Normalize phone
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+
+    // Check for duplicate pending request
+    const dupRes = await pool.query(`
+      SELECT id FROM booking_requests
+      WHERE library_id=$1 AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),10)=$2
+        AND status='pending'
+    `, [lib.id, cleanPhone]);
+    if (dupRes.rows.length) {
+      return res.status(400).json({ error: 'You already have a pending booking request at this library.' });
+    }
+
+    // Create booking request
+    const bookingRes = await pool.query(`
+      INSERT INTO booking_requests
+        (library_id, student_name, phone, email, plan_id, plan_name, shift_id, shift_name, amount, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING *
+    `, [
+      lib.id, studentName, cleanPhone, email||null,
+      planId, plan.name, shiftId||null, shift?.name||null,
+      plan.price, notes||null
+    ]);
+    const booking = bookingRes.rows[0];
+
+    // Send WhatsApp confirmation to student (if WaBulk configured)
+    try {
+      const waRes = await pool.query(
+        `SELECT api_key, session_id FROM whatsapp_settings WHERE library_id=$1`, [lib.id]
+      );
+      if (waRes.rows.length) {
+        const { api_key, session_id } = waRes.rows[0];
+        const toPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
+        await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${api_key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id,
+            template: `Hi {{name}}! 🎉 Your seat booking request at {{library}} has been received!\n\nPlan: {{plan}}\nShift: {{shift}}\nAmount: ₹{{amount}}\n\n📞 Please call the library to make payment and confirm your seat. Once payment is received, your seat will be activated.\n\nWe will notify you once confirmed!\n— {{library}}`,
+            messages: [{ to: toPhone, vars: { name: studentName, library: lib.library_name, plan: plan.name, shift: shift?.name || 'N/A', amount: String(plan.price) } }],
+            delay_ms: 1000,
+          }),
+        }).catch(() => {});
+      }
+    } catch(e) { /* non-blocking */ }
+
+    // Push notification to library owner
+    const { sendPushToLibrary } = require('./push');
+    if (sendPushToLibrary) {
+      sendPushToLibrary(lib.id, {
+        title: `📋 New Booking Request`,
+        body: `${studentName} wants to book a seat — ${plan.name}`,
+        icon: '/icons/icon-192.png',
+        url: '/?page=subscriptions',
+      }).catch(() => {});
+    }
+
+    res.status(201).json({
+      ok: true,
+      booking: { id: booking.id, status: booking.status, planName: plan.name, shiftName: shift?.name },
+      message: 'Booking request submitted! Please contact the library to complete payment.',
+    });
+  } catch(err) {
+    console.error('[public booking]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BOOKING REQUESTS — Library owner management (protected)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Auto-create booking_requests table
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS booking_requests (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        library_id    UUID NOT NULL,
+        student_name  VARCHAR(255) NOT NULL,
+        phone         VARCHAR(50) NOT NULL,
+        email         VARCHAR(255),
+        plan_id       UUID,
+        plan_name     VARCHAR(255) NOT NULL,
+        shift_id      UUID,
+        shift_name    VARCHAR(100),
+        amount        NUMERIC(10,2) NOT NULL,
+        status        VARCHAR(20) NOT NULL DEFAULT 'pending',
+        notes         TEXT,
+        decline_reason TEXT,
+        whatsapp_sent BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Auto-generate slugs for libraries without one
+    await pool.query(`
+      UPDATE libraries
+      SET slug = LOWER(TRIM(BOTH '-' FROM REGEXP_REPLACE(REGEXP_REPLACE(library_name, '[^a-zA-Z0-9\s]', '', 'g'), '\s+', '-', 'g')))
+      WHERE slug IS NULL OR slug = ''
+    `).catch(()=>{});
+  } catch(e) { console.warn('[booking_requests table]', e.message); }
+})();
+
+// GET /api/bookings — list booking requests for this library
+router.get('/bookings', async (req, res) => {
+  const { status = 'pending' } = req.query;
+  try {
+    const r = await pool.query(`
+      SELECT * FROM booking_requests
+      WHERE library_id=$1 ${status !== 'all' ? "AND status=$2" : ""}
+      ORDER BY created_at DESC
+    `, status !== 'all' ? [libId(req), status] : [libId(req)]);
+    res.json(r.rows);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PATCH /api/bookings/:id/approve — approve booking → create student + subscription
+router.patch('/bookings/:id/approve', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Get booking
+    const bRes = await client.query(
+      `SELECT * FROM booking_requests WHERE id=$1 AND library_id=$2 AND status='pending'`,
+      [req.params.id, libId(req)]
+    );
+    if (!bRes.rows.length) return res.status(404).json({ error: 'Booking not found or already processed' });
+    const b = bRes.rows[0];
+
+    // Get or create student
+    const cleanPhone = b.phone.replace(/\D/g, '').slice(-10);
+    let studentId;
+    const stRes = await client.query(
+      `SELECT id FROM students WHERE library_id=$1 AND RIGHT(REGEXP_REPLACE(phone,'[^0-9]','','g'),10)=$2`,
+      [libId(req), cleanPhone]
+    );
+    if (stRes.rows.length) {
+      studentId = stRes.rows[0].id;
+    } else {
+      const newSt = await client.query(
+        `INSERT INTO students (library_id, name, phone, email, status)
+         VALUES ($1,$2,$3,$4,'active') RETURNING id`,
+        [libId(req), b.student_name, cleanPhone, b.email||null]
+      );
+      studentId = newSt.rows[0].id;
+    }
+
+    // Create subscription
+    const startDate = new Date().toISOString().slice(0, 10);
+    const plan = await client.query(`SELECT duration FROM plans WHERE id=$1`, [b.plan_id]);
+    const duration = plan.rows[0]?.duration || 30;
+    const endDate = new Date(Date.now() + duration * 86400000).toISOString().slice(0, 10);
+
+    await client.query(`
+      INSERT INTO subscriptions
+        (library_id, student_id, plan_id, plan_name, shift_id, shift_name, amount, payment_mode, start_date, end_date)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9)
+    `, [libId(req), studentId, b.plan_id, b.plan_name, b.shift_id, b.shift_name, b.amount, startDate, endDate]);
+
+    // Update booking status
+    await client.query(
+      `UPDATE booking_requests SET status='approved', updated_at=NOW() WHERE id=$1`,
+      [b.id]
+    );
+
+    await client.query('COMMIT');
+
+    // Send WhatsApp confirmation to student
+    try {
+      const waRes = await pool.query(`SELECT api_key, session_id FROM whatsapp_settings WHERE library_id=$1`, [libId(req)]);
+      const libRes = await pool.query(`SELECT library_name, contact_phone FROM libraries WHERE id=$1`, [libId(req)]);
+      if (waRes.rows.length) {
+        const { api_key, session_id } = waRes.rows[0];
+        const libName = libRes.rows[0]?.library_name || 'Library';
+        const toPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
+        await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${api_key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id,
+            template: `Great news, {{name}}! ✅ Your seat at {{library}} has been confirmed!\n\nPlan: {{plan}}\nShift: {{shift}}\nValid from: {{start}} to {{end}}\n\nWelcome to the family! We look forward to seeing you every day. 📚\n— {{library}}`,
+            messages: [{ to: toPhone, vars: { name: b.student_name, library: libName, plan: b.plan_name, shift: b.shift_name||'N/A', start: startDate, end: endDate } }],
+            delay_ms: 1000,
+          }),
+        }).catch(()=>{});
+      }
+    } catch(e) {}
+
+    res.json({ ok: true, message: 'Booking approved! Student and subscription created.' });
+  } catch(err) {
+    await client.query('ROLLBACK');
+    console.error('[approve booking]', err.message);
+    res.status(500).json({ error: 'Server error' });
+  } finally { client.release(); }
+});
+
+// PATCH /api/bookings/:id/decline — decline booking
+router.patch('/bookings/:id/decline', async (req, res) => {
+  const { reason } = req.body;
+  try {
+    const bRes = await pool.query(
+      `UPDATE booking_requests SET status='declined', decline_reason=$1, updated_at=NOW()
+       WHERE id=$2 AND library_id=$3 AND status='pending' RETURNING *`,
+      [reason||null, req.params.id, libId(req)]
+    );
+    if (!bRes.rows.length) return res.status(404).json({ error: 'Booking not found' });
+    const b = bRes.rows[0];
+
+    // Send WhatsApp decline message
+    try {
+      const waRes = await pool.query(`SELECT api_key, session_id FROM whatsapp_settings WHERE library_id=$1`, [libId(req)]);
+      const libRes = await pool.query(`SELECT library_name FROM libraries WHERE id=$1`, [libId(req)]);
+      if (waRes.rows.length) {
+        const { api_key, session_id } = waRes.rows[0];
+        const cleanPhone = b.phone.replace(/\D/g, '').slice(-10);
+        const toPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : `+91${cleanPhone}`;
+        const libName = libRes.rows[0]?.library_name || 'Library';
+        await fetch('https://wabulk-api.onrender.com/v1/messages/send', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${api_key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id,
+            template: `Hi {{name}}, we regret to inform you that your seat booking request at {{library}} could not be confirmed at this time.${reason ? `\n\nReason: ${reason}` : ''}\n\nPlease contact us directly for more information or to explore other available options.\n\nThank you for your interest!\n— {{library}}`,
+            messages: [{ to: toPhone, vars: { name: b.student_name, library: libName } }],
+            delay_ms: 1000,
+          }),
+        }).catch(()=>{});
+      }
+    } catch(e) {}
+
+    res.json({ ok: true, message: 'Booking declined.' });
+  } catch(err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/library/slug — get current library's slug
+router.get('/library/slug', async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT slug, library_name FROM libraries WHERE id=$1`, [libId(req)]);
+    res.json(r.rows[0] || null);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// PATCH /api/library/profile — update library public profile
+router.patch('/library/profile', async (req, res) => {
+  const { tagline, address, contactPhone, amenities } = req.body;
+  try {
+    const r = await pool.query(`
+      UPDATE libraries SET tagline=$1, address=$2, contact_phone=$3, amenities=$4, updated_at=NOW()
+      WHERE id=$5 RETURNING tagline, address, contact_phone, amenities, slug, library_name
+    `, [tagline||null, address||null, contactPhone||null, amenities||null, libId(req)]);
+    res.json(r.rows[0]);
+  } catch(err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+
 module.exports = router;
 

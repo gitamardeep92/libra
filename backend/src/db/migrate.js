@@ -270,6 +270,78 @@ CREATE TABLE IF NOT EXISTS email_settings (
   updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- LIBRARY SLUG + PUBLIC BOOKING FEATURE
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Add slug to libraries (auto-generated from library name)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='slug') THEN
+    ALTER TABLE libraries ADD COLUMN slug VARCHAR(100) UNIQUE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='tagline') THEN
+    ALTER TABLE libraries ADD COLUMN tagline VARCHAR(255);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='address') THEN
+    ALTER TABLE libraries ADD COLUMN address TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='contact_phone') THEN
+    ALTER TABLE libraries ADD COLUMN contact_phone VARCHAR(20);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='libraries' AND column_name='amenities') THEN
+    ALTER TABLE libraries ADD COLUMN amenities TEXT; -- comma separated: wifi,ac,parking etc
+  END IF;
+END $$;
+
+-- Auto-generate slug for existing libraries that don't have one
+DO $$
+DECLARE
+  lib RECORD;
+  base_slug TEXT;
+  final_slug TEXT;
+  counter INT;
+BEGIN
+  FOR lib IN SELECT id, library_name FROM libraries WHERE slug IS NULL LOOP
+    -- Convert name to slug: lowercase, replace spaces/special chars with hyphens
+    base_slug := LOWER(REGEXP_REPLACE(REGEXP_REPLACE(lib.library_name, '[^a-zA-Z0-9\s]', '', 'g'), '\s+', '-', 'g'));
+    base_slug := TRIM(BOTH '-' FROM base_slug);
+    final_slug := base_slug;
+    counter := 2;
+    -- Handle duplicates
+    WHILE EXISTS (SELECT 1 FROM libraries WHERE slug = final_slug AND id != lib.id) LOOP
+      final_slug := base_slug || '-' || counter;
+      counter := counter + 1;
+    END LOOP;
+    UPDATE libraries SET slug = final_slug WHERE id = lib.id;
+  END LOOP;
+END $$;
+
+-- Booking requests (from public landing page)
+CREATE TABLE IF NOT EXISTS booking_requests (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  library_id    UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+  student_name  VARCHAR(255) NOT NULL,
+  phone         VARCHAR(50) NOT NULL,
+  email         VARCHAR(255),
+  plan_id       UUID REFERENCES plans(id) ON DELETE SET NULL,
+  plan_name     VARCHAR(255) NOT NULL,
+  shift_id      UUID REFERENCES shifts(id) ON DELETE SET NULL,
+  shift_name    VARCHAR(100),
+  amount        NUMERIC(10,2) NOT NULL,
+  status        VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending | approved | declined
+  notes         TEXT,
+  decline_reason TEXT,
+  whatsapp_sent BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_library ON booking_requests(library_id);
+CREATE INDEX IF NOT EXISTS idx_booking_phone   ON booking_requests(phone);
+CREATE INDEX IF NOT EXISTS idx_booking_status  ON booking_requests(status);
+CREATE INDEX IF NOT EXISTS idx_libraries_slug  ON libraries(slug);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_students_library    ON students(library_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_lib   ON subscriptions(library_id);
