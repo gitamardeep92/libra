@@ -1897,7 +1897,7 @@ function Settings({ library, onUpdate, setupStatus }) {
       )}
 
       <div className="pill-tabs">
-        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["librarypage","🌐 Library Page"],["notifications","Notifications"]].map(([v,l])=>(
+        {[["profile","Profile"],["password","Password"],["email","📧 Email Setup"],["whatsapp","💬 WhatsApp Setup"],["notifications","Notifications"]].map(([v,l])=>(
           <div key={v} className={`pill${tab===v?" active":""}`} onClick={()=>{setTab(v);setError("");setSuccess("");}}>{l}</div>
         ))}
       </div>
@@ -1951,6 +1951,28 @@ function Settings({ library, onUpdate, setupStatus }) {
   );
 }
 
+
+// ─── LIBRARY PAGE — FULL STANDALONE PAGE ────────────────────────────────────
+function LibraryPageFull({ library, onUpdate }) {
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError]   = useState("");
+  const flash = (msg, isErr=false) => {
+    if (isErr) { setError(msg); setSuccess(""); }
+    else { setSuccess(msg); setError(""); }
+    setTimeout(()=>{ setSuccess(""); setError(""); }, 3500);
+  };
+  return (
+    <div>
+      <div className="page-header">
+        <div className="page-header-left"><h1>Library Page</h1><p>Your public landing page for students</p></div>
+      </div>
+      {success&&<div className="alert alert-success" style={{marginBottom:16}}><Icon name="check" size={14} color="var(--green)"/><span style={{fontSize:13}}>{success}</span></div>}
+      {error&&<div className="alert alert-warning" style={{marginBottom:16}}><Icon name="warn" size={14} color="var(--red)"/><span style={{fontSize:13,color:"var(--red)"}}>{error}</span></div>}
+      <LibraryPageSettings library={library} flash={flash} saving={saving} setSaving={setSaving}/>
+    </div>
+  );
+}
 
 // ─── LIBRARY PAGE SETTINGS COMPONENT ─────────────────────────────────────────
 function LibraryPageSettings({ library, flash, saving, setSaving }) {
@@ -2797,6 +2819,7 @@ function Sidebar({ library, active, onNav, onLogout, isOpen, onClose, urgentRemi
     {id:"reports",    icon:"chart",     label:"Reports",      section:"manage"},
     {id:"attendance", icon:"attendance",label:"Attendance",   section:"manage"},
     {id:"marketing",  icon:"megaphone", label:"Marketing",    section:"tools",  extra: !setupStatus?.waConfigured && !setupStatus?.emailConfigured ? setupBadge : newBadge},
+    {id:"librarypage",icon:"link",      label:"Library Page",  section:"tools",  extra: newBadge},
     {id:"settings",   icon:"settings",  label:"Settings",     section:"tools",  extra: (!setupStatus?.waConfigured || !setupStatus?.emailConfigured) ? setupBadge : null},
     {id:"billing",    icon:"payment",   label:"Billing & Plans",section:"tools"},
   ];
@@ -3857,7 +3880,7 @@ export default function App() {
   const getInitialPage = () => {
     // 1. Try URL hash first (most reliable on refresh)
     const hash = window.location.hash.replace('#', '');
-    const validPages = ["dashboard","students","plans","shifts","subscriptions","seats","reminders","expenses","reports","attendance","marketing","settings","billing"];
+    const validPages = ["dashboard","students","plans","shifts","subscriptions","seats","reminders","expenses","reports","attendance","marketing","settings","billing","librarypage"];
     if (hash && validPages.includes(hash)) return hash;
     // 2. Fall back to localStorage
     const stored = localStorage.getItem("libra_page");
@@ -4028,7 +4051,7 @@ export default function App() {
 
   const urgentReminders = (data.reminders || []).filter(r => !r.done && daysDiff(r.due_date) <= 3).length;
 
-  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], attendance:["Attendance","& QR Check-in"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"] };
+  const pageTitle = { dashboard:["Dashboard","Overview"], students:["Students","Management"], plans:["Plans","& Pricing"], shifts:["Shifts","& Time Slots"], subscriptions:["Subscriptions","Management"], seats:["Seat","Map"], reminders:["Reminders","& Alerts"], expenses:["Expenses","Tracking"], reports:["Reports","& Analytics"], attendance:["Attendance","& QR Check-in"], marketing:["Marketing","& WhatsApp"], settings:["Account","Settings"], billing:["Billing","& Subscription"], librarypage:["Library","Public Page"] };
   const [t1,t2] = pageTitle[page] || ["",""];
 
   if (checking) return <SplashScreen />;
@@ -4105,6 +4128,7 @@ export default function App() {
             {page==="attendance"&&<Attendance library={library}/>}
             {page==="marketing"&&<Marketing data={data} library={library} waConfigured={setupStatus.waConfigured} emailConfigured={setupStatus.emailConfigured} onNavigate={navigate}/>}
             {page==="settings"&&<Settings library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))} setupStatus={setupStatus}/>}
+            {page==="librarypage"&&<LibraryPageFull library={library} onUpdate={(upd)=>setLibrary(prev=>({...prev,...upd}))}/>}
             {page==="billing"&&<Billing library={library}/>}
           </div>
         </main>
