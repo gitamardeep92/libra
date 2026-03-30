@@ -2086,46 +2086,67 @@ function LibraryPageSettings({ library, flash, saving, setSaving }) {
           {showStandy ? "Hide Standy Preview" : "Show Standy Preview 📋"}
         </button>
 
-        {showStandy && (
+        {showStandy && slug && (
           <>
+            {/* Print-only CSS — injected into head */}
+            <style>{`
+              @media print {
+                body > * { display: none !important; }
+                #standy-print-wrapper { display: block !important; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; }
+                #standy-print-wrapper * { display: block; }
+              }
+              @media screen {
+                #standy-print-wrapper { display: block; }
+              }
+            `}</style>
+
             {/* Standy design */}
-            <div id="standy-print" style={{
-              background:"#fff", color:"#000", borderRadius:16, padding:28,
-              maxWidth:320, margin:"0 auto", textAlign:"center",
-              border:"3px solid #e8a838", fontFamily:"'Plus Jakarta Sans', sans-serif",
-            }}>
-              <div style={{fontSize:28, marginBottom:4}}>📚</div>
-              <div style={{fontSize:20,fontWeight:800,color:"#e8a838",marginBottom:2}}>{library?.library_name}</div>
-              {form.tagline && <div style={{fontSize:12,color:"#666",marginBottom:12}}>{form.tagline}</div>}
+            <div id="standy-print-wrapper">
+              <div id="standy-print" style={{
+                background:"#fff", color:"#000", borderRadius:16, padding:28,
+                maxWidth:320, margin:"0 auto", textAlign:"center",
+                border:"3px solid #e8a838", fontFamily:"Arial, sans-serif",
+              }}>
+                <div style={{fontSize:28, marginBottom:4}}>📚</div>
+                <div style={{fontSize:20,fontWeight:800,color:"#e8a838",marginBottom:2}}>{library?.library_name}</div>
+                {form.tagline && <div style={{fontSize:12,color:"#666",marginBottom:12}}>{form.tagline}</div>}
 
-              <div style={{background:"#fff8e6",border:"2px dashed #e8a838",borderRadius:12,padding:16,marginBottom:12}}>
-                {/* QR placeholder — in real app use qrcode library */}
-                <div style={{width:140,height:140,background:"#f0f0f0",borderRadius:8,margin:"0 auto 8px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#999"}}>
-                  QR Code<br/>(scan to visit)
+                {/* QR Code — generated via Google Charts API (free, no key needed) */}
+                <div style={{background:"#fff8e6",border:"2px dashed #e8a838",borderRadius:12,padding:16,marginBottom:12}}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(pageUrl)}&bgcolor=fff8e6&color=000000&margin=4`}
+                    alt="QR Code"
+                    width={160} height={160}
+                    style={{borderRadius:8,display:"block",margin:"0 auto 8px"}}
+                  />
+                  <div style={{fontSize:10,color:"#666",wordBreak:"break-all",marginTop:4}}>{pageUrl}</div>
                 </div>
-                <div style={{fontSize:10,color:"#666",wordBreak:"break-all"}}>{pageUrl}</div>
+
+                <div style={{fontSize:13,fontWeight:700,color:"#333",marginBottom:4}}>📱 Scan to Book Your Seat</div>
+                <div style={{fontSize:11,color:"#666",marginBottom:12,lineHeight:1.5}}>View plans, check availability<br/>& submit booking request</div>
+
+                {form.contactPhone && (
+                  <div style={{background:"#f5f5f5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#333"}}>
+                    📞 Call us: <strong>{form.contactPhone}</strong>
+                  </div>
+                )}
+
+                <div style={{marginTop:12,fontSize:9,color:"#aaa"}}>Powered by LibraryDesk.in</div>
               </div>
-
-              <div style={{fontSize:13,fontWeight:700,color:"#333",marginBottom:4}}>📱 Scan to Book Your Seat</div>
-              <div style={{fontSize:11,color:"#666",marginBottom:12,lineHeight:1.5}}>View plans, check availability<br/>& submit booking request</div>
-
-              {form.contactPhone && (
-                <div style={{background:"#f5f5f5",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#333"}}>
-                  📞 Call us: <strong>{form.contactPhone}</strong>
-                </div>
-              )}
-
-              <div style={{marginTop:12,fontSize:9,color:"#aaa"}}>Powered by LibraryDesk.in</div>
             </div>
 
-            <div style={{marginTop:12,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-              <button className="btn btn-primary" onClick={()=>window.print()}
-                style={{gap:8}}>
+            <div style={{marginTop:16,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+              <button className="btn btn-primary" onClick={()=>{
+                  // Print only the standy by hiding everything else
+                  const wrapper = document.getElementById('standy-print-wrapper');
+                  const original = document.body.innerHTML;
+                  document.body.innerHTML = wrapper.innerHTML;
+                  window.print();
+                  document.body.innerHTML = original;
+                  window.location.reload();
+                }} style={{gap:8}}>
                 <Icon name="send" size={14}/>Print Standy
               </button>
-              <div style={{fontSize:12,color:"var(--text3)",alignSelf:"center"}}>
-                Note: For QR code, use <a href={`https://qr-code-generator.com/?data=${encodeURIComponent(pageUrl)}`} target="_blank" rel="noreferrer" style={{color:"var(--accent)"}}>qr-code-generator.com</a> with your page URL
-              </div>
             </div>
           </>
         )}
