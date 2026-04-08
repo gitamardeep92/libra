@@ -51,7 +51,8 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health check (used by AWS ELB / Elastic Beanstalk) ──────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/', (req, res) => res.status(200).send('ok'));
+app.get('/health', (req, res) => res.status(200).send('ok'));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 const { router: pushRouter } = require('./routes/push');
@@ -236,6 +237,9 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 
 // ─── SHIFT-BASED ATTENDANCE REMINDERS (cron) ─────────────────────────────────
+// Temporarily disabled while debugging backend availability on Render.
+// Re-enable after / and /health are publicly reachable again.
+/*
 // Runs every minute, checks if any shift has a reminder due
 // Check-in reminder: 30 mins before shift start
 // Check-out reminder: 15 mins before shift end
@@ -456,6 +460,7 @@ app.get('/checkin/:libraryId', (req, res) => {
     console.error('[reminder cron setup error]', e.message);
   }
 })();
+*/
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
