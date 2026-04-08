@@ -2,6 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
+const pool    = require('./db/pool');
 
 const authRouter  = require('./routes/auth');
 const apiRouter   = require('./routes/api');
@@ -18,14 +19,28 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
 // Also always allow the backend's own origin (for QR checkin page)
 const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL || '';
 
+function isTrustedOrigin(origin) {
+  if (!origin) return true;
+  if (BACKEND_URL && origin === BACKEND_URL) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname.endsWith('.onrender.com')) return true;
+    if (hostname === 'librarydesk.in' || hostname.endsWith('.librarydesk.in')) return true;
+    if (hostname.endsWith('.cloudfront.net')) return true;
+  } catch (_) {
+    return false;
+  }
+
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, PWA)
     if (!origin) return callback(null, true);
-    // Allow backend's own origin (QR checkin page is served from backend)
-    if (BACKEND_URL && origin === BACKEND_URL) return callback(null, true);
-    if (origin.includes('onrender.com')) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isTrustedOrigin(origin)) return callback(null, true);
     callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
@@ -229,7 +244,9 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 (async () => {
   try {
-    const pool = require('./db/pool');
+    if (!pool || typeof pool.query !== 'function') {
+      throw new Error('Database pool is not initialized correctly');
+    }
 
     const runReminders = async () => {
       try {
