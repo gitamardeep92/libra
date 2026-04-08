@@ -40,7 +40,9 @@ const ensureAttendanceTable = async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS att_student ON attendance(student_id)`).catch(()=>{});
   console.log('[attendance] Table ready ✓');
 };
-ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
+// Temporarily disabled while debugging Render startup / reachability.
+// Tables already exist in Supabase, so this auto-init is not required for now.
+// ensureAttendanceTable().catch(e => console.warn('[attendance table]', e.message));
 
 // PUBLIC: Student check-in via QR (no auth — uses library token in URL)
 // GET /api/attendance/qr-info/:libraryToken  — get library name for QR page
@@ -1302,4 +1304,3 @@ router.patch('/library/profile', async (req, res) => {
 
 
 module.exports = router;
-
