@@ -229,7 +229,7 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 (async () => {
   try {
-    const { pool } = require('./db/pool');
+    const pool = require('./db/pool');
 
     const runReminders = async () => {
       try {
