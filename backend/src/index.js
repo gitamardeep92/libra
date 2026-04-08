@@ -2,7 +2,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
-const pool    = require('./db/pool');
 
 const authRouter  = require('./routes/auth');
 const apiRouter   = require('./routes/api');
@@ -19,28 +18,14 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
 // Also always allow the backend's own origin (for QR checkin page)
 const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL || '';
 
-function isTrustedOrigin(origin) {
-  if (!origin) return true;
-  if (BACKEND_URL && origin === BACKEND_URL) return true;
-  if (allowedOrigins.includes(origin)) return true;
-
-  try {
-    const { hostname } = new URL(origin);
-    if (hostname.endsWith('.onrender.com')) return true;
-    if (hostname === 'librarydesk.in' || hostname.endsWith('.librarydesk.in')) return true;
-    if (hostname.endsWith('.cloudfront.net')) return true;
-  } catch (_) {
-    return false;
-  }
-
-  return false;
-}
-
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, PWA)
     if (!origin) return callback(null, true);
-    if (isTrustedOrigin(origin)) return callback(null, true);
+    // Allow backend's own origin (QR checkin page is served from backend)
+    if (BACKEND_URL && origin === BACKEND_URL) return callback(null, true);
+    if (origin.includes('onrender.com')) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
     callback(new Error(`CORS blocked: ${origin}`));
   },
   credentials: true,
@@ -51,8 +36,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health check (used by AWS ELB / Elastic Beanstalk) ──────────────────────
-app.get('/', (req, res) => res.status(200).send('ok'));
-app.get('/health', (req, res) => res.status(200).send('ok'));
+app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 const { router: pushRouter } = require('./routes/push');
@@ -237,9 +221,6 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 
 // ─── SHIFT-BASED ATTENDANCE REMINDERS (cron) ─────────────────────────────────
-// Temporarily disabled while debugging backend availability on Render.
-// Re-enable after / and /health are publicly reachable again.
-/*
 // Runs every minute, checks if any shift has a reminder due
 // Check-in reminder: 30 mins before shift start
 // Check-out reminder: 15 mins before shift end
@@ -248,9 +229,7 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 (async () => {
   try {
-    if (!pool || typeof pool.query !== 'function') {
-      throw new Error('Database pool is not initialized correctly');
-    }
+    const { pool } = require('./db/pool');
 
     const runReminders = async () => {
       try {
@@ -460,7 +439,6 @@ app.get('/checkin/:libraryId', (req, res) => {
     console.error('[reminder cron setup error]', e.message);
   }
 })();
-*/
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
