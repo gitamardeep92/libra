@@ -229,7 +229,7 @@ app.get('/checkin/:libraryId', (req, res) => {
 
 (async () => {
   try {
-    const { pool } = require('./db/pool');
+    const pool = require('./db/pool');
 
     const runReminders = async () => {
       try {
@@ -269,10 +269,9 @@ app.get('/checkin/:libraryId', (req, res) => {
                    sh.start_time, sh.end_time
             FROM shifts sh
             WHERE sh.library_id = $1
-              AND TO_CHAR(
-                (sh.start_time::time - INTERVAL '30 minutes'),
-                'HH24:MI'
-              ) = $2
+              AND (sh.start_time::time - INTERVAL '30 minutes')
+                BETWEEN ($2::time - INTERVAL '4 minutes')
+                    AND ($2::time + INTERVAL '4 minutes')
           `, [lib.library_id, currentTimeStr]);
 
           for (const shift of checkinShifts) {
@@ -352,10 +351,9 @@ app.get('/checkin/:libraryId', (req, res) => {
                    sh.start_time, sh.end_time
             FROM shifts sh
             WHERE sh.library_id = $1
-              AND TO_CHAR(
-                (sh.end_time::time - INTERVAL '15 minutes'),
-                'HH24:MI'
-              ) = $2
+              AND (sh.end_time::time - INTERVAL '15 minutes')
+                BETWEEN ($2::time - INTERVAL '4 minutes')
+                    AND ($2::time + INTERVAL '4 minutes')
           `, [lib.library_id, currentTimeStr]);
 
           for (const shift of checkoutShifts) {
@@ -431,9 +429,9 @@ app.get('/checkin/:libraryId', (req, res) => {
       }
     };
 
-    // Run every minute
-    setInterval(runReminders, 60 * 1000);
-    console.log('✅ Shift attendance reminder cron started');
+    // Run every 5 minutes
+    setInterval(runReminders, 5 * 60 * 1000);
+    console.log('✅ Shift attendance reminder cron started (every 5 minutes)');
 
   } catch(e) {
     console.error('[reminder cron setup error]', e.message);
